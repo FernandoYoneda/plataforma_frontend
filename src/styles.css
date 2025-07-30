@@ -1,0 +1,226 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Estilização global */
+body {
+  font-family: "Inter", sans-serif;
+  background: linear-gradient(to bottom, #f3f4f6, #e5e7eb);
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+/* Navegação */
+nav {
+  background: linear-gradient(to right, #1f2937, #374151);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+nav a,
+nav button {
+  transition: all 0.3s ease;
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+}
+
+nav a:hover,
+nav button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Containers principais */
+.max-w-md,
+.max-w-4xl {
+  max-width: 90%;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 15px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s ease;
+}
+
+@media (min-width: 768px) {
+  .max-w-md {
+    max-width: 28rem;
+  }
+  .max-w-4xl {
+    max-width: 64rem;
+  }
+}
+
+/* Inputs e Select */
+input,
+select {
+  border: 1px solid #d1d5db;
+  padding: 0.75rem;
+  transition: all 0.3s ease;
+  outline: none;
+}
+
+input:focus,
+select:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Botões */
+button {
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+button.bg-blue-500::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width 0.4s ease, height 0.4s ease;
+}
+
+button.bg-blue-500:hover::after {
+  width: 200%;
+  height: 200%;
+}
+
+button.bg-green-500::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width 0.4s ease, height 0.4s ease;
+}
+
+button.bg-green-500:hover::after {
+  width: 200%;
+  height: 200%;
+}
+
+/* Títulos */
+h2 {
+  font-weight: 700;
+  color: #1f2937;
+  position: relative;
+  padding-bottom: 0.5rem;
+}
+
+h2::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 3rem;
+  height: 3px;
+  background: #3b82f6;
+  border-radius: 2px;
+}
+
+/* Informações de configuração e erros */
+.mb-4 p,
+.text-red-500 {
+  background: #f9fafb;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+.text-red-500 {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* Tabela */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.75rem;
+}
+
+tr {
+  transition: background-color 0.2s ease;
+}
+
+/* Responsividade para telas pequenas */
+@media (max-width: 640px) {
+  nav {
+    padding: 1rem;
+  }
+
+  nav .flex {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  nav a,
+  nav button {
+    display: block;
+    text-align: center;
+  }
+
+  .max-w-md,
+  .max-w-4xl {
+    padding: 1rem;
+  }
+
+  input,
+  select,
+  button {
+    font-size: 0.95rem;
+  }
+
+  table {
+    font-size: 0.9rem;
+  }
+
+  th,
+  td {
+    padding: 0.5rem;
+  }
+}
+
+/* Animações */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.max-w-md,
+.max-w-4xl {
+  animation: fadeIn 0.5s ease-out;
+}
