@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import React from 'react'
 
 const OrderForm = () => {
   const [material, setMaterial] = useState("");
