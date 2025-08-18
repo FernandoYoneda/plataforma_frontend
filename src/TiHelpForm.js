@@ -2,23 +2,19 @@ import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link } from "react-router-dom";
 
-export default function OrderForm() {
+export default function TiHelpForm() {
   const dispatch = useDispatch();
-
   const settings = useSelector((state) => state.settings);
   const user = useSelector((state) => state.user);
 
-  const [form, setForm] = useState({ item: "", qty: 1, notes: "" });
+  const [form, setForm] = useState({ title: "", description: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [ok, setOk] = useState(false);
 
   const onChange = (e) => {
     const { name, value } = e.target;
-    setForm((f) => ({
-      ...f,
-      [name]: name === "qty" ? Number(value) : value,
-    }));
+    setForm((f) => ({ ...f, [name]: value }));
   };
 
   const onSubmit = async (e) => {
@@ -26,8 +22,14 @@ export default function OrderForm() {
     setError(null);
     setOk(false);
 
-    if (!form.item.trim() || !form.qty || form.qty <= 0) {
-      setError("Informe o item e uma quantidade válida.");
+    if (!form.title.trim() || !form.description.trim()) {
+      setError("Informe o título e a descrição do chamado.");
+      return;
+    }
+    if (!settings?.sector?.trim() || !settings?.nameOrStore?.trim()) {
+      setError(
+        "Preencha Setor e Nome/Loja nas Configurações antes de abrir chamado."
+      );
       return;
     }
 
@@ -35,27 +37,26 @@ export default function OrderForm() {
     try {
       const payload = {
         ...form,
-        item: form.item.trim(),
-        notes: form.notes.trim(),
-        sector: settings?.sector || "",
-        nameOrStore: settings?.nameOrStore || "",
-        role: user?.role || "",
+        title: form.title.trim(),
+        description: form.description.trim(),
+        // ✅ Identificação de quem abriu
+        sector: settings.sector.trim(),
+        nameOrStore: settings.nameOrStore.trim(),
+        createdBy: user?.role || "solicitante_ti",
         createdAt: new Date().toISOString(),
       };
 
-      const res = await fetch(`/api/orders`, {
+      const res = await fetch(`/api/ti/tickets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
-      if (!res.ok) throw new Error("Falha ao criar pedido");
+      if (!res.ok) throw new Error("Falha ao abrir chamado");
       const data = await res.json();
 
-      // Atualiza a store local do solicitante (não afeta o responsável — ele busca do backend)
-      dispatch({ type: "ADD_ORDER", payload: data });
+      dispatch({ type: "ADD_TICKET", payload: data });
       setOk(true);
-      setForm({ item: "", qty: 1, notes: "" });
+      setForm({ title: "", description: "" });
     } catch (err) {
       setError(err.message || "Erro ao salvar");
     } finally {
@@ -65,11 +66,11 @@ export default function OrderForm() {
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
-      {/* Cabeçalho com identificação do usuário atual */}
+      {/* Cabeçalho com identificação do solicitante de TI */}
       <div className="rounded-xl border p-4 bg-white shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
           <div>
-            <h1 className="text-xl font-semibold">Novo Pedido</h1>
+            <h1 className="text-xl font-semibold">Chamado de TI</h1>
             <p className="text-sm text-gray-600">
               Você está logado como{" "}
               <span className="font-medium">{user?.role || "—"}</span>
@@ -99,51 +100,39 @@ export default function OrderForm() {
         </div>
       </div>
 
-      {/* Formulário do pedido */}
+      {/* Formulário do chamado de TI */}
       <form
         onSubmit={onSubmit}
         className="space-y-4 rounded-xl border p-4 bg-white shadow-sm"
       >
         <div>
-          <label className="block text-sm mb-1">Item</label>
+          <label className="block text-sm mb-1">Título do chamado</label>
           <input
             className="w-full border rounded p-2"
-            name="item"
-            value={form.item}
+            name="title"
+            value={form.title}
             onChange={onChange}
-            placeholder="Ex.: Papel A4"
+            placeholder="Ex.: Computador não liga"
             required
           />
         </div>
 
         <div>
-          <label className="block text-sm mb-1">Quantidade</label>
-          <input
-            className="w-full border rounded p-2"
-            type="number"
-            name="qty"
-            value={form.qty}
-            onChange={onChange}
-            min={1}
-            required
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm mb-1">Observações (opcional)</label>
+          <label className="block text-sm mb-1">Descrição</label>
           <textarea
             className="w-full border rounded p-2"
-            name="notes"
-            value={form.notes}
+            name="description"
+            value={form.description}
             onChange={onChange}
-            rows={3}
-            placeholder="Detalhes adicionais do pedido..."
+            rows={5}
+            placeholder="Explique o problema com detalhes…"
+            required
           />
         </div>
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
         {ok && (
-          <p className="text-green-600 text-sm">Pedido enviado com sucesso!</p>
+          <p className="text-green-600 text-sm">Chamado aberto com sucesso!</p>
         )}
 
         <button
@@ -151,7 +140,7 @@ export default function OrderForm() {
           disabled={saving}
           className="bg-blue-600 text-white rounded px-4 py-2 disabled:opacity-60"
         >
-          {saving ? "Enviando..." : "Enviar pedido"}
+          {saving ? "Enviando..." : "Abrir chamado"}
         </button>
       </form>
     </div>

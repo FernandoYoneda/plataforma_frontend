@@ -1,89 +1,107 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import React from "react";
 
-const Login = () => {
+export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("solicitante");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const handleLogin = async (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
-    setError("");
+    setError(null);
+    setLoading(true);
+
+    const emailNorm = email.trim();
+    const passNorm = password.trim();
 
     try {
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/login`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, role }),
-        }
-      );
+      const res = await fetch(`/api/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailNorm, password: passNorm }),
+      });
 
-      if (!response.ok) {
-        throw new Error("Credenciais inválidas");
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Credenciais inválidas");
       }
 
-      const data = await response.json();
-      dispatch({ type: "SET_USER", payload: { email, role: data.role } });
-      navigate(data.role === "solicitante" ? "/settings" : "/orders");
+      const data = await res.json(); // { role }
+      dispatch({ type: "SET_USER", payload: { role: data.role } });
+
+      try {
+        localStorage.setItem("user", JSON.stringify({ role: data.role }));
+      } catch (e2) {
+        console.warn("Não foi possível salvar user no localStorage:", e2);
+      }
+
+      switch (data.role) {
+        case "responsavel":
+          navigate("/orders", { replace: true });
+          break;
+        case "solicitante":
+          navigate("/settings", { replace: true });
+          break;
+        case "responsavel_ti":
+          navigate("/ti/chamados", { replace: true });
+          break;
+        case "solicitante_ti":
+          navigate("/ti/help", { replace: true });
+          break;
+        default:
+          navigate("/login", { replace: true });
+      }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Falha no login");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-md mx-auto p-4">
-      <h2 className="text-2xl font-bold mb-4">Login</h2>
-      {error && <p className="text-red-500 mb-4">{error}</p>}
-      <form onSubmit={handleLogin} className="space-y-4">
+    <div className="max-w-md mx-auto p-6">
+      <h1 className="text-xl font-semibold mb-4">Login</h1>
+      <form onSubmit={onSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium">E-mail</label>
+          <label className="block text-sm mb-1">E-mail</label>
           <input
-            type="email"
+            className="w-full border rounded p-2"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-            placeholder="Digite seu e-mail"
+            placeholder="email@exemplo.com"
+            type="email"
             required
+            autoComplete="username"
           />
         </div>
+
         <div>
-          <label className="block text-sm font-medium">Senha</label>
+          <label className="block text-sm mb-1">Senha</label>
           <input
-            type="password"
+            className="w-full border rounded p-2"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-            placeholder="Digite sua senha"
+            placeholder="********"
+            type="password"
             required
+            autoComplete="current-password"
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium">Tipo de Usuário</label>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-          >
-            <option value="solicitante">Solicitante</option>
-            <option value="responsavel">Responsável</option>
-          </select>
-        </div>
+
+        {error && <p className="text-red-600 text-sm">{error}</p>}
+
         <button
           type="submit"
-          className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+          disabled={loading}
+          className="bg-blue-600 text-white rounded px-4 py-2 disabled:opacity-60"
         >
-          Entrar
+          {loading ? "Entrando..." : "Entrar"}
         </button>
       </form>
     </div>
   );
-};
-
-export default Login;
+}

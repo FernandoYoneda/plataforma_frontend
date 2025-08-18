@@ -1,77 +1,125 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 
-const Settings = () => {
+export default function Settings() {
   const dispatch = useDispatch();
-  const settings = useSelector((state) => state.settings);
-  const [sector, setSector] = useState(settings.sector);
-  const [nameOrStore, setNameOrStore] = useState(settings.nameOrStore);
-  const [error, setError] = useState("");
   const navigate = useNavigate();
+  const settings = useSelector((state) => state.settings);
 
-  const handleSave = async () => {
-    if (!sector || !nameOrStore) {
-      setError("Por favor, preencha ambos os campos: Setor e Nome/Loja.");
+  const [sector, setSector] = useState(settings?.sector || "");
+  const [nameOrStore, setNameOrStore] = useState(settings?.nameOrStore || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Carrega settings do backend quando ainda não existem no Redux
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const res = await fetch(`/api/settings`);
+        if (!res.ok) throw new Error("Falha ao carregar configurações");
+        const data = await res.json(); // { sector, nameOrStore }
+        if (!cancelled) {
+          dispatch({ type: "SET_SETTINGS", payload: data });
+          setSector(data?.sector || "");
+          setNameOrStore(data?.nameOrStore || "");
+          try {
+            localStorage.setItem("settings", JSON.stringify(data));
+          } catch (e) {
+            console.warn(
+              "Não foi possível salvar settings no localStorage:",
+              e
+            );
+          }
+        }
+      } catch (e) {
+        console.warn("Erro buscando settings:", e);
+      }
+    }
+
+    if (!settings?.sector || !settings?.nameOrStore) {
+      load();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch, settings?.sector, settings?.nameOrStore]);
+
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!sector.trim() || !nameOrStore.trim()) {
+      setError("Preencha Setor e Nome/Loja.");
       return;
     }
 
-    const updatedSettings = { sector, nameOrStore };
+    setSaving(true);
     try {
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/settings`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(updatedSettings),
-        }
-      );
-      if (!response.ok) throw new Error("Erro ao salvar configurações");
-      dispatch({ type: "UPDATE_SETTINGS", payload: updatedSettings });
-      setError("");
-      navigate("/");
-    } catch (error) {
-      setError("Erro ao salvar configurações. Tente novamente.");
-      console.error("Erro ao salvar configurações:", error);
+      const res = await fetch(`/api/settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sector: sector.trim(),
+          nameOrStore: nameOrStore.trim(),
+        }),
+      });
+      if (!res.ok) throw new Error("Falha ao salvar configurações");
+      const data = await res.json();
+
+      dispatch({ type: "SET_SETTINGS", payload: data });
+      try {
+        localStorage.setItem("settings", JSON.stringify(data));
+      } catch (e2) {
+        console.warn("Não foi possível salvar settings no localStorage:", e2);
+      }
+
+      // Após salvar com sucesso, vai para Novo Pedido
+      navigate("/", { replace: true });
+    } catch (err) {
+      setError(err.message || "Erro ao salvar");
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
-    <div className="max-w-md mx-auto p-4">
-      <h2 className="text-2xl font-bold mb-4">Configurações</h2>
-      {error && <p className="text-red-500 mb-4">{error}</p>}
-      <div className="space-y-4">
+    <div className="max-w-lg mx-auto p-6">
+      <h1 className="text-xl font-semibold mb-4">Configurações</h1>
+      <form onSubmit={onSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium">Setor</label>
+          <label className="block text-sm mb-1">Setor</label>
           <input
-            type="text"
+            className="w-full border rounded p-2"
             value={sector}
             onChange={(e) => setSector(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-            placeholder="Digite o setor"
             required
           />
         </div>
+
         <div>
-          <label className="block text-sm font-medium">Nome/Loja</label>
+          <label className="block text-sm mb-1">Nome/Loja</label>
           <input
-            type="text"
+            className="w-full border rounded p-2"
             value={nameOrStore}
             onChange={(e) => setNameOrStore(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-            placeholder="Digite o nome ou loja"
             required
           />
         </div>
+
+        {error && <p className="text-red-600 text-sm">{error}</p>}
+
         <button
-          onClick={handleSave}
-          className="w-full bg-green-500 text-white p-2 rounded hover:bg-green-600"
+          type="submit"
+          disabled={saving}
+          className="bg-green-600 text-white rounded px-4 py-2 disabled:opacity-60"
         >
-          Salvar Configurações
+          {saving ? "Salvando..." : "Salvar e continuar"}
         </button>
-      </div>
+      </form>
     </div>
   );
-};
-
-export default Settings;
+}

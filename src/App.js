@@ -1,24 +1,25 @@
+import React, { useEffect } from "react";
 import { Routes, Route, Link, Navigate, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import OrderForm from "./OrderForm";
 import Settings from "./Settings";
 import OrderList from "./OrderList";
 import Login from "./Login";
-import React from "react";
+import TiHelpForm from "./TiHelpForm";
+import TiTicketList from "./TiTicketList";
 
-const ProtectedRoute = ({ children, allowedRole }) => {
+const ProtectedRoute = ({ children, allowedRole, requireSettings = false }) => {
   const user = useSelector((state) => state.user);
   const settings = useSelector((state) => state.settings);
 
-  if (!user) return <Navigate to="/login" />;
-  if (allowedRole && user.role !== allowedRole) return <Navigate to="/login" />;
-  if (
-    allowedRole === "solicitante" &&
-    children.type === OrderForm &&
-    (!settings.sector || !settings.nameOrStore)
-  ) {
-    return <Navigate to="/settings" />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (allowedRole && user.role !== allowedRole)
+    return <Navigate to="/login" replace />;
+
+  if (requireSettings && (!settings?.sector || !settings?.nameOrStore)) {
+    return <Navigate to="/settings" replace />;
   }
+
   return children;
 };
 
@@ -28,17 +29,46 @@ const App = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    try {
+      const savedUser = JSON.parse(localStorage.getItem("user"));
+      if (savedUser) {
+        dispatch({ type: "SET_USER", payload: savedUser });
+      }
+    } catch (e) {
+      console.warn("Não foi possível ler user do localStorage:", e);
+    }
+
+    try {
+      const savedSettings = JSON.parse(localStorage.getItem("settings"));
+      if (savedSettings) {
+        dispatch({ type: "SET_SETTINGS", payload: savedSettings });
+      }
+    } catch (e) {
+      console.warn("Não foi possível ler settings do localStorage:", e);
+    }
+  }, [dispatch]);
+
   const handleLogout = () => {
     dispatch({ type: "CLEAR_USER" });
+    try {
+      localStorage.removeItem("user");
+      // Se desejar, limpe também as configurações:
+      // localStorage.removeItem("settings");
+      // dispatch({ type: "CLEAR_SETTINGS" });
+    } catch (e) {
+      console.warn("Não foi possível limpar localStorage:", e);
+    }
     navigate("/login");
   };
 
   return (
     <div>
       <nav className="bg-gray-800 p-4">
-        <div className="max-w-7xl mx-auto flex space-x-4 md:space-x-6">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center gap-3">
           {user ? (
             <>
+              {/* Materiais */}
               {user.role === "solicitante" && (
                 <>
                   <Link
@@ -47,7 +77,7 @@ const App = () => {
                   >
                     Configurações
                   </Link>
-                  {settings.sector && settings.nameOrStore && (
+                  {settings?.sector && settings?.nameOrStore && (
                     <Link
                       to="/"
                       className="text-white hover:text-gray-300 font-medium"
@@ -65,6 +95,35 @@ const App = () => {
                   Lista de Pedidos
                 </Link>
               )}
+
+              {/* TI */}
+              {user.role === "solicitante_ti" && (
+                <>
+                  <Link
+                    to="/settings"
+                    className="text-white hover:text-gray-300 font-medium"
+                  >
+                    Configurações
+                  </Link>
+                  {settings?.sector && settings?.nameOrStore && (
+                    <Link
+                      to="/ti/help"
+                      className="text-white hover:text-gray-300 font-medium"
+                    >
+                      Chamado de TI
+                    </Link>
+                  )}
+                </>
+              )}
+              {user.role === "responsavel_ti" && (
+                <Link
+                  to="/ti/chamados"
+                  className="text-white hover:text-gray-300 font-medium"
+                >
+                  Lista de Chamados de TI
+                </Link>
+              )}
+
               <button
                 onClick={handleLogout}
                 className="text-white hover:text-gray-300 font-medium"
@@ -82,12 +141,19 @@ const App = () => {
           )}
         </div>
       </nav>
+
       <Routes>
         <Route path="/login" element={<Login />} />
+
+        {/* Materiais */}
         <Route
           path="/settings"
           element={
-            <ProtectedRoute allowedRole="solicitante">
+            <ProtectedRoute
+              allowedRole={
+                user?.role?.includes("ti") ? user.role : "solicitante"
+              }
+            >
               <Settings />
             </ProtectedRoute>
           }
@@ -95,7 +161,7 @@ const App = () => {
         <Route
           path="/"
           element={
-            <ProtectedRoute allowedRole="solicitante">
+            <ProtectedRoute allowedRole="solicitante" requireSettings>
               <OrderForm />
             </ProtectedRoute>
           }
@@ -108,11 +174,43 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* TI */}
+        <Route
+          path="/ti/help"
+          element={
+            <ProtectedRoute allowedRole="solicitante_ti" requireSettings>
+              <TiHelpForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ti/chamados"
+          element={
+            <ProtectedRoute allowedRole="responsavel_ti">
+              <TiTicketList />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="*"
           element={
             <Navigate
-              to={user && user.role === "solicitante" ? "/settings" : "/login"}
+              to={
+                user
+                  ? user.role === "solicitante"
+                    ? "/settings"
+                    : user.role === "responsavel"
+                    ? "/orders"
+                    : user.role === "solicitante_ti"
+                    ? "/settings"
+                    : user.role === "responsavel_ti"
+                    ? "/ti/chamados"
+                    : "/login"
+                  : "/login"
+              }
+              replace
             />
           }
         />
