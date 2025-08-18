@@ -1,5 +1,5 @@
 // src/OrderList.js
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { useDispatch, useSelector } from "react-redux";
 
@@ -8,26 +8,45 @@ export default function OrderList() {
   const orders = useSelector((s) => s.orders);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const timerRef = useRef(null);
+
+  const load = async () => {
+    try {
+      setErr("");
+      const data = await api.getOrders();
+      dispatch({ type: "SET_ORDERS", payload: data });
+    } catch (e) {
+      setErr(e.message || "Falha ao carregar pedidos");
+    }
+  };
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      setErr("");
-      try {
-        const data = await api.getOrders();
-        dispatch({ type: "SET_ORDERS", payload: data });
-      } catch (e) {
-        setErr(e.message || "Falha ao carregar pedidos");
-      } finally {
-        setLoading(false);
-      }
-    })();
+    // carga inicial
+    setLoading(true);
+    load().finally(() => setLoading(false));
+
+    // polling a cada 5s
+    timerRef.current = setInterval(load, 5000);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, [dispatch]);
 
   return (
     <div className="max-w-5xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">Lista de Pedidos</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">Lista de Pedidos</h1>
+        <button
+          onClick={load}
+          className="text-sm px-3 py-1 rounded border"
+          title="Atualizar agora"
+        >
+          Atualizar
+        </button>
+      </div>
+
       {err && <div className="text-red-600 text-sm mb-3">{err}</div>}
+
       {loading ? (
         <div>Carregando...</div>
       ) : orders.length === 0 ? (
@@ -47,7 +66,7 @@ export default function OrderList() {
             </thead>
             <tbody>
               {orders.map((o) => (
-                <tr key={o.id} className="hover:bg-gray-50">
+                <tr key={o.id || `${o.item}-${o.createdAt}`}>
                   <td className="p-2 border">
                     {o.createdAt ? new Date(o.createdAt).toLocaleString() : "-"}
                   </td>

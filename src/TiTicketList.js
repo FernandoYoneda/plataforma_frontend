@@ -1,5 +1,5 @@
 // src/TiTicketList.js
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { useDispatch, useSelector } from "react-redux";
 
@@ -8,26 +8,43 @@ export default function TiTicketList() {
   const tiTickets = useSelector((s) => s.tiTickets);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const timerRef = useRef(null);
+
+  const load = async () => {
+    try {
+      setErr("");
+      const data = await api.getTiTickets();
+      dispatch({ type: "SET_TI_TICKETS", payload: data });
+    } catch (e) {
+      setErr(e.message || "Falha ao carregar chamados");
+    }
+  };
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      setErr("");
-      try {
-        const data = await api.getTiTickets();
-        dispatch({ type: "SET_TI_TICKETS", payload: data });
-      } catch (e) {
-        setErr(e.message || "Falha ao carregar chamados");
-      } finally {
-        setLoading(false);
-      }
-    })();
+    setLoading(true);
+    load().finally(() => setLoading(false));
+
+    timerRef.current = setInterval(load, 5000);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, [dispatch]);
 
   return (
     <div className="max-w-5xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">Lista de Chamados de TI</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">Lista de Chamados de TI</h1>
+        <button
+          onClick={load}
+          className="text-sm px-3 py-1 rounded border"
+          title="Atualizar agora"
+        >
+          Atualizar
+        </button>
+      </div>
+
       {err && <div className="text-red-600 text-sm mb-3">{err}</div>}
+
       {loading ? (
         <div>Carregando...</div>
       ) : tiTickets.length === 0 ? (
@@ -47,7 +64,7 @@ export default function TiTicketList() {
             </thead>
             <tbody>
               {tiTickets.map((t) => (
-                <tr key={t.id} className="hover:bg-gray-50">
+                <tr key={t.id || `${t.title}-${t.createdAt}`}>
                   <td className="p-2 border">
                     {t.createdAt ? new Date(t.createdAt).toLocaleString() : "-"}
                   </td>
