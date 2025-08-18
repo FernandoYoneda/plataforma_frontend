@@ -14,15 +14,15 @@ const ProtectedRoute = ({ children, allowedRole, requireSettings = false }) => {
   const user = useSelector((state) => state.user);
   const settings = useSelector((state) => state.settings);
 
-  // Não logado
+  // Bloqueia acesso se não logado
   if (!user) return <Navigate to="/login" replace />;
 
-  // Papel não permitido
+  // Bloqueia se o papel não bate
   if (allowedRole && user.role !== allowedRole) {
     return <Navigate to="/login" replace />;
   }
 
-  // Exigir configurações preenchidas (sector e nameOrStore)
+  // Exige configurações preenchidas quando necessário
   if (requireSettings && (!settings?.sector || !settings?.nameOrStore)) {
     return <Navigate to="/settings" replace />;
   }
@@ -36,7 +36,7 @@ const App = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // Reidrata user/settings do localStorage ao carregar o app
+  // Reidrata user e settings do localStorage ao montar
   useEffect(() => {
     try {
       const savedUser = JSON.parse(localStorage.getItem("user"));
@@ -61,7 +61,7 @@ const App = () => {
     dispatch({ type: "CLEAR_USER" });
     try {
       localStorage.removeItem("user");
-      // Se quiser limpar também as configs locais, descomente:
+      // Caso queira limpar também as configs locais:
       // localStorage.removeItem("settings");
       // dispatch({ type: "CLEAR_SETTINGS" });
     } catch (e) {

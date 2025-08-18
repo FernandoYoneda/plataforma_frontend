@@ -1,107 +1,67 @@
+// src/OrderList.js
 import React, { useEffect, useState } from "react";
+import { api } from "./api";
 import { useDispatch, useSelector } from "react-redux";
 
 export default function OrderList() {
   const dispatch = useDispatch();
-  const orders = useSelector((state) => state.orders);
+  const orders = useSelector((s) => s.orders);
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState(null);
-
-  const fetchOrders = async () => {
-    setErr(null);
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/orders`);
-      if (!res.ok) throw new Error("Falha ao carregar pedidos");
-      const data = await res.json();
-      dispatch({ type: "SET_ORDERS", payload: data });
-    } catch (e) {
-      setErr(e.message || "Erro ao carregar pedidos");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [err, setErr] = useState("");
 
   useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
+    (async () => {
+      setLoading(true);
+      setErr("");
       try {
-        const res = await fetch(`/api/orders`);
-        if (!res.ok) throw new Error("Falha ao carregar pedidos");
-        const data = await res.json();
-        if (!cancelled) dispatch({ type: "SET_ORDERS", payload: data });
+        const data = await api.getOrders();
+        dispatch({ type: "SET_ORDERS", payload: data });
       } catch (e) {
-        if (!cancelled) setErr(e.message || "Erro ao carregar pedidos");
+        setErr(e.message || "Falha ao carregar pedidos");
+      } finally {
+        setLoading(false);
       }
-    };
-
-    load();
-
-    // auto-refresh leve (10s)
-    const id = setInterval(() => {
-      fetchOrders();
-    }, 10000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    })();
   }, [dispatch]);
 
   return (
     <div className="max-w-5xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold">Lista de Pedidos</h1>
-        <button
-          onClick={fetchOrders}
-          disabled={loading}
-          className="bg-gray-800 text-white rounded px-4 py-2 disabled:opacity-60"
-        >
-          {loading ? "Atualizando..." : "Atualizar"}
-        </button>
-      </div>
-
-      {err && <p className="text-red-600 text-sm mb-3">{err}</p>}
-
-      <div className="space-y-3">
-        {(!orders || orders.length === 0) && (
-          <div className="rounded border p-4 bg-white">
-            Nenhum pedido ainda.
-          </div>
-        )}
-
-        {orders.map((o) => (
-          <div
-            key={o.id ?? `${o.item}-${o.createdAt}`}
-            className="rounded border p-4 bg-white shadow-sm"
-          >
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
-              <div>
-                <h2 className="font-semibold">
-                  {o.item}{" "}
-                  <span className="text-sm text-gray-500">× {o.qty}</span>
-                </h2>
-                {o.notes && (
-                  <p className="text-sm text-gray-700 mt-1">{o.notes}</p>
-                )}
-                <p className="text-xs text-gray-500 mt-1">
-                  Setor: <span className="font-medium">{o.sector || "—"}</span>{" "}
-                  • Nome/Loja:{" "}
-                  <span className="font-medium">{o.nameOrStore || "—"}</span>
-                </p>
-              </div>
-              <div className="text-sm text-gray-600">
-                <div className="mt-1">
-                  Criado em:{" "}
-                  {o.createdAt ? new Date(o.createdAt).toLocaleString() : "—"}
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+      <h1 className="text-2xl font-bold mb-4">Lista de Pedidos</h1>
+      {err && <div className="text-red-600 text-sm mb-3">{err}</div>}
+      {loading ? (
+        <div>Carregando...</div>
+      ) : orders.length === 0 ? (
+        <div>Nenhum pedido encontrado.</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full bg-white border">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="p-2 text-left border">Data</th>
+                <th className="p-2 text-left border">Item</th>
+                <th className="p-2 text-left border">Qtd</th>
+                <th className="p-2 text-left border">Setor</th>
+                <th className="p-2 text-left border">Nome/Loja</th>
+                <th className="p-2 text-left border">Obs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((o) => (
+                <tr key={o.id} className="hover:bg-gray-50">
+                  <td className="p-2 border">
+                    {o.createdAt ? new Date(o.createdAt).toLocaleString() : "-"}
+                  </td>
+                  <td className="p-2 border">{o.item}</td>
+                  <td className="p-2 border">{o.qty}</td>
+                  <td className="p-2 border">{o.sector || "-"}</td>
+                  <td className="p-2 border">{o.nameOrStore || "-"}</td>
+                  <td className="p-2 border">{o.notes || "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

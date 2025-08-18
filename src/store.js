@@ -1,70 +1,44 @@
+// src/store.js
 import { createStore } from "redux";
-
-const defaultSettings = { sector: "", nameOrStore: "" };
-
-const loadFromLS = (key, fallback) => {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-const saveToLS = (key, value) => {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* noop */
-  }
-};
 
 const initialState = {
   orders: [],
-  tickets: [], // NOVO: chamados de TI
-  settings: loadFromLS("settings", defaultSettings),
-  user: loadFromLS("user", null),
+  tiTickets: [],
+  settings: { sector: "", nameOrStore: "" },
+  user: null,
 };
 
-const reducer = (state = initialState, action) => {
+function reducer(state = initialState, action) {
   switch (action.type) {
-    case "ADD_ORDER":
-      return { ...state, orders: [...state.orders, action.payload] };
-
-    case "SET_ORDERS":
-      return { ...state, orders: action.payload };
-
-    case "SET_SETTINGS":
-      return { ...state, settings: action.payload || defaultSettings };
-
-    case "CLEAR_SETTINGS":
-      return { ...state, settings: defaultSettings };
-
     case "SET_USER":
       return { ...state, user: action.payload };
-
     case "CLEAR_USER":
       return { ...state, user: null };
 
-    // NOVO: TI tickets
-    case "ADD_TICKET":
-      return { ...state, tickets: [...state.tickets, action.payload] };
+    // compat: alguns lugares chamavam UPDATE_SETTINGS, outros SET_SETTINGS
+    case "SET_SETTINGS":
+    case "UPDATE_SETTINGS":
+      return {
+        ...state,
+        settings: action.payload || { sector: "", nameOrStore: "" },
+      };
+    case "CLEAR_SETTINGS":
+      return { ...state, settings: { sector: "", nameOrStore: "" } };
 
-    case "SET_TICKETS":
-      return { ...state, tickets: action.payload };
+    case "SET_ORDERS":
+      return { ...state, orders: action.payload || [] };
+    case "ADD_ORDER":
+      return { ...state, orders: [action.payload, ...state.orders] };
+
+    case "SET_TI_TICKETS":
+      return { ...state, tiTickets: action.payload || [] };
+    case "ADD_TI_TICKET":
+      return { ...state, tiTickets: [action.payload, ...state.tiTickets] };
 
     default:
       return state;
   }
-};
+}
 
 const store = createStore(reducer);
-
-// Persistência automática de user/settings
-store.subscribe(() => {
-  const { user, settings } = store.getState();
-  saveToLS("user", user);
-  saveToLS("settings", settings);
-});
-
 export default store;

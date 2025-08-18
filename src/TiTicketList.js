@@ -1,67 +1,67 @@
-import React, { useEffect } from "react";
+// src/TiTicketList.js
+import React, { useEffect, useState } from "react";
+import { api } from "./api";
 import { useDispatch, useSelector } from "react-redux";
 
 export default function TiTicketList() {
   const dispatch = useDispatch();
-  const tickets = useSelector((state) => state.tickets);
+  const tiTickets = useSelector((s) => s.tiTickets);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
+    (async () => {
+      setLoading(true);
+      setErr("");
       try {
-        const res = await fetch(`/api/ti/tickets`);
-        if (!res.ok) throw new Error("Falha ao listar chamados de TI");
-        const data = await res.json();
-        if (!cancelled) {
-          dispatch({ type: "SET_TICKETS", payload: data });
-        }
+        const data = await api.getTiTickets();
+        dispatch({ type: "SET_TI_TICKETS", payload: data });
       } catch (e) {
-        console.warn("Erro listando chamados de TI:", e);
+        setErr(e.message || "Falha ao carregar chamados");
+      } finally {
+        setLoading(false);
       }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
+    })();
   }, [dispatch]);
 
   return (
     <div className="max-w-5xl mx-auto p-6">
-      <h1 className="text-xl font-semibold mb-4">Lista de Chamados de TI</h1>
-
-      <div className="space-y-3">
-        {tickets.length === 0 && (
-          <div className="rounded border p-4 bg-white">
-            Nenhum chamado até o momento.
-          </div>
-        )}
-
-        {tickets.map((t) => (
-          <div key={t.id} className="rounded border p-4 bg-white shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-              <div>
-                <h2 className="font-semibold">{t.title}</h2>
-                <p className="text-sm text-gray-700 mt-1">{t.description}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Setor: <span className="font-medium">{t.sector || "—"}</span>{" "}
-                  • Nome/Loja:{" "}
-                  <span className="font-medium">{t.nameOrStore || "—"}</span>
-                </p>
-              </div>
-              <div className="text-sm text-gray-600">
-                <div>
-                  Status: <span className="font-medium">{t.status}</span>
-                </div>
-                <div className="mt-1">
-                  Criado em: {new Date(t.createdAt).toLocaleString()}
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+      <h1 className="text-2xl font-bold mb-4">Lista de Chamados de TI</h1>
+      {err && <div className="text-red-600 text-sm mb-3">{err}</div>}
+      {loading ? (
+        <div>Carregando...</div>
+      ) : tiTickets.length === 0 ? (
+        <div>Nenhum chamado encontrado.</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full bg-white border">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="p-2 text-left border">Data</th>
+                <th className="p-2 text-left border">Título</th>
+                <th className="p-2 text-left border">Descrição</th>
+                <th className="p-2 text-left border">Setor</th>
+                <th className="p-2 text-left border">Nome/Loja</th>
+                <th className="p-2 text-left border">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tiTickets.map((t) => (
+                <tr key={t.id} className="hover:bg-gray-50">
+                  <td className="p-2 border">
+                    {t.createdAt ? new Date(t.createdAt).toLocaleString() : "-"}
+                  </td>
+                  <td className="p-2 border">{t.title}</td>
+                  <td className="p-2 border">{t.description}</td>
+                  <td className="p-2 border">{t.sector || "-"}</td>
+                  <td className="p-2 border">{t.nameOrStore || "-"}</td>
+                  <td className="p-2 border">{t.status || "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

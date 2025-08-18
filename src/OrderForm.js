@@ -1,117 +1,69 @@
+// src/OrderForm.js
 import React, { useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { Link } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { api } from "./api";
 
 export default function OrderForm() {
   const dispatch = useDispatch();
+  const settings = useSelector((s) => s.settings);
+  const user = useSelector((s) => s.user);
 
-  const settings = useSelector((state) => state.settings);
-  const user = useSelector((state) => state.user);
-
-  const [form, setForm] = useState({ item: "", qty: 1, notes: "" });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const [ok, setOk] = useState(false);
-
-  const onChange = (e) => {
-    const { name, value } = e.target;
-    setForm((f) => ({
-      ...f,
-      [name]: name === "qty" ? Number(value) : value,
-    }));
-  };
+  const [item, setItem] = useState("");
+  const [qty, setQty] = useState(1);
+  const [notes, setNotes] = useState("");
+  const [msg, setMsg] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
-    setOk(false);
-
-    if (!form.item.trim() || !form.qty || form.qty <= 0) {
-      setError("Informe o item e uma quantidade válida.");
+    setMsg("");
+    if (!item.trim() || !qty) {
+      setMsg("Informe o item e a quantidade.");
       return;
     }
-
-    setSaving(true);
+    setLoading(true);
     try {
       const payload = {
-        ...form,
-        item: form.item.trim(),
-        notes: form.notes.trim(),
-        sector: settings?.sector || "",
-        nameOrStore: settings?.nameOrStore || "",
-        role: user?.role || "",
-        createdAt: new Date().toISOString(),
+        item: item.trim(),
+        qty: Number(qty),
+        notes: notes.trim(),
+        sector: settings?.sector || null,
+        nameOrStore: settings?.nameOrStore || null,
+        role: user?.role || null,
       };
+      const created = await api.createOrder(payload);
+      dispatch({ type: "ADD_ORDER", payload: created });
 
-      const res = await fetch(`/api/orders`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) throw new Error("Falha ao criar pedido");
-      const data = await res.json();
-
-      // Atualiza a store local do solicitante (não afeta o responsável — ele busca do backend)
-      dispatch({ type: "ADD_ORDER", payload: data });
-      setOk(true);
-      setForm({ item: "", qty: 1, notes: "" });
+      setItem("");
+      setQty(1);
+      setNotes("");
+      setMsg("Pedido criado com sucesso!");
     } catch (err) {
-      setError(err.message || "Erro ao salvar");
+      setMsg(err.message || "Erro ao criar pedido");
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-6">
-      {/* Cabeçalho com identificação do usuário atual */}
-      <div className="rounded-xl border p-4 bg-white shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-          <div>
-            <h1 className="text-xl font-semibold">Novo Pedido</h1>
-            <p className="text-sm text-gray-600">
-              Você está logado como{" "}
-              <span className="font-medium">{user?.role || "—"}</span>
-            </p>
-          </div>
-          <div className="text-sm">
-            <div className="flex flex-wrap gap-2">
-              <span className="inline-flex items-center rounded-full border px-3 py-1">
-                <span className="mr-1 font-medium">Setor:</span>
-                {settings?.sector || "—"}
-              </span>
-              <span className="inline-flex items-center rounded-full border px-3 py-1">
-                <span className="mr-1 font-medium">Nome/Loja:</span>
-                {settings?.nameOrStore || "—"}
-              </span>
-            </div>
-            <div className="mt-2 text-right">
-              <Link
-                to="/settings"
-                className="text-blue-600 hover:underline"
-                title="Alterar configurações"
-              >
-                Alterar configurações
-              </Link>
-            </div>
-          </div>
+    <div className="max-w-2xl mx-auto p-6">
+      <div className="mb-4 p-3 bg-gray-100 rounded">
+        <div className="text-sm text-gray-700">
+          <strong>Usuário:</strong> {settings?.nameOrStore || "-"} &nbsp;|&nbsp;{" "}
+          <strong>Setor:</strong> {settings?.sector || "-"}
         </div>
       </div>
 
-      {/* Formulário do pedido */}
-      <form
-        onSubmit={onSubmit}
-        className="space-y-4 rounded-xl border p-4 bg-white shadow-sm"
-      >
+      <h1 className="text-2xl font-bold mb-4">Novo Pedido</h1>
+
+      <form onSubmit={onSubmit} className="space-y-4">
         <div>
           <label className="block text-sm mb-1">Item</label>
           <input
             className="w-full border rounded p-2"
-            name="item"
-            value={form.item}
-            onChange={onChange}
-            placeholder="Ex.: Papel A4"
+            value={item}
+            onChange={(e) => setItem(e.target.value)}
+            placeholder="Ex: Papel A4"
             required
           />
         </div>
@@ -119,12 +71,11 @@ export default function OrderForm() {
         <div>
           <label className="block text-sm mb-1">Quantidade</label>
           <input
-            className="w-full border rounded p-2"
             type="number"
-            name="qty"
-            value={form.qty}
-            onChange={onChange}
             min={1}
+            className="w-full border rounded p-2"
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
             required
           />
         </div>
@@ -133,25 +84,20 @@ export default function OrderForm() {
           <label className="block text-sm mb-1">Observações (opcional)</label>
           <textarea
             className="w-full border rounded p-2"
-            name="notes"
-            value={form.notes}
-            onChange={onChange}
             rows={3}
-            placeholder="Detalhes adicionais do pedido..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Detalhes do pedido"
           />
         </div>
 
-        {error && <p className="text-red-600 text-sm">{error}</p>}
-        {ok && (
-          <p className="text-green-600 text-sm">Pedido enviado com sucesso!</p>
-        )}
+        {msg && <div className="text-sm">{msg}</div>}
 
         <button
-          type="submit"
-          disabled={saving}
-          className="bg-blue-600 text-white rounded px-4 py-2 disabled:opacity-60"
+          className="bg-blue-600 text-white rounded px-4 py-2"
+          disabled={loading}
         >
-          {saving ? "Enviando..." : "Enviar pedido"}
+          {loading ? "Enviando..." : "Enviar Pedido"}
         </button>
       </form>
     </div>
