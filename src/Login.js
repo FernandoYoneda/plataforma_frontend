@@ -1,44 +1,43 @@
+// src/Login.js
 import React, { useState } from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { api } from "./api"; // usa REACT_APP_API em produção
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(null);
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
+    setError("");
     setLoading(true);
 
-    const emailNorm = email.trim();
-    const passNorm = password.trim();
-
     try {
-      const res = await fetch(`/api/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailNorm, password: passNorm }),
-      });
+      const data = await api.login({
+        email: email.trim(),
+        password: password.trim(),
+      }); // espera { role: "..." }
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Credenciais inválidas");
-      }
+      // guarda no redux
+      dispatch({ type: "SET_USER", payload: { email, role: data.role } });
 
-      const data = await res.json(); // { role }
-      dispatch({ type: "SET_USER", payload: { role: data.role } });
-
+      // persiste no localStorage
       try {
-        localStorage.setItem("user", JSON.stringify({ role: data.role }));
-      } catch (e2) {
-        console.warn("Não foi possível salvar user no localStorage:", e2);
+        localStorage.setItem(
+          "user",
+          JSON.stringify({ email, role: data.role })
+        );
+      } catch {
+        /* ignore */
       }
 
+      // redireciona por papel
       switch (data.role) {
         case "responsavel":
           navigate("/orders", { replace: true });
@@ -63,36 +62,36 @@ export default function Login() {
   };
 
   return (
-    <div className="max-w-md mx-auto p-6">
-      <h1 className="text-xl font-semibold mb-4">Login</h1>
-      <form onSubmit={onSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm mb-1">E-mail</label>
-          <input
-            className="w-full border rounded p-2"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="email@exemplo.com"
-            type="email"
-            required
-            autoComplete="username"
-          />
-        </div>
+    <div className="flex justify-center mt-16">
+      <form
+        onSubmit={onSubmit}
+        className="bg-white shadow rounded p-6 w-full max-w-md"
+      >
+        <h1 className="text-2xl font-bold mb-4">Login</h1>
 
-        <div>
-          <label className="block text-sm mb-1">Senha</label>
-          <input
-            className="w-full border rounded p-2"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="********"
-            type="password"
-            required
-            autoComplete="current-password"
-          />
-        </div>
+        <label className="block text-sm mb-1">E-mail</label>
+        <input
+          type="email"
+          className="w-full border rounded px-3 py-2 mb-3"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="email@exemplo.com"
+          required
+          autoComplete="username"
+        />
 
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        <label className="block text-sm mb-1">Senha</label>
+        <input
+          type="password"
+          className="w-full border rounded px-3 py-2 mb-3"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="********"
+          required
+          autoComplete="current-password"
+        />
+
+        {error && <div className="text-red-600 text-sm mb-3">{error}</div>}
 
         <button
           type="submit"

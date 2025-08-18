@@ -1,6 +1,8 @@
+// src/App.js
 import React, { useEffect } from "react";
 import { Routes, Route, Link, Navigate, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
+
 import OrderForm from "./OrderForm";
 import Settings from "./Settings";
 import OrderList from "./OrderList";
@@ -12,10 +14,15 @@ const ProtectedRoute = ({ children, allowedRole, requireSettings = false }) => {
   const user = useSelector((state) => state.user);
   const settings = useSelector((state) => state.settings);
 
+  // Não logado
   if (!user) return <Navigate to="/login" replace />;
-  if (allowedRole && user.role !== allowedRole)
-    return <Navigate to="/login" replace />;
 
+  // Papel não permitido
+  if (allowedRole && user.role !== allowedRole) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Exigir configurações preenchidas (sector e nameOrStore)
   if (requireSettings && (!settings?.sector || !settings?.nameOrStore)) {
     return <Navigate to="/settings" replace />;
   }
@@ -29,6 +36,7 @@ const App = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
+  // Reidrata user/settings do localStorage ao carregar o app
   useEffect(() => {
     try {
       const savedUser = JSON.parse(localStorage.getItem("user"));
@@ -53,7 +61,7 @@ const App = () => {
     dispatch({ type: "CLEAR_USER" });
     try {
       localStorage.removeItem("user");
-      // Se desejar, limpe também as configurações:
+      // Se quiser limpar também as configs locais, descomente:
       // localStorage.removeItem("settings");
       // dispatch({ type: "CLEAR_SETTINGS" });
     } catch (e) {
@@ -87,6 +95,7 @@ const App = () => {
                   )}
                 </>
               )}
+
               {user.role === "responsavel" && (
                 <Link
                   to="/orders"
@@ -115,6 +124,7 @@ const App = () => {
                   )}
                 </>
               )}
+
               {user.role === "responsavel_ti" && (
                 <Link
                   to="/ti/chamados"
@@ -193,6 +203,7 @@ const App = () => {
           }
         />
 
+        {/* Fallback por papel */}
         <Route
           path="*"
           element={
