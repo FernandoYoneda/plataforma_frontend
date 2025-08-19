@@ -1,58 +1,66 @@
 // src/api.js
-const API_BASE = process.env.REACT_APP_API || "/api"; // prod: usa env; dev: usa proxy
+const API_BASE = process.env.REACT_APP_API || "/api";
 
 async function request(path, options = {}) {
-  const url = `${API_BASE}${path}`;
-  const res = await fetch(url, {
+  const res = await fetch(`${API_BASE}${path}`, {
     method: options.method || "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-    body: options.body || undefined,
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    body: options.body,
   });
-
   const ct = res.headers.get("content-type") || "";
-  let data = null;
-  if (ct.includes("application/json")) {
-    data = await res.json();
-  } else {
-    const text = await res.text().catch(() => "");
-    data = text ? { message: text } : null;
-  }
-
-  if (!res.ok) {
-    const msg = (data && (data.error || data.message)) || `HTTP ${res.status}`;
-    const err = new Error(msg);
-    err.status = res.status;
-    err.data = data;
-    throw err;
-  }
+  const data = ct.includes("application/json")
+    ? await res.json()
+    : await res.text();
+  if (!res.ok) throw new Error((data && data.error) || `HTTP ${res.status}`);
   return data;
 }
 
 export const api = {
-  // AUTH
+  // auth
   login: ({ email, password }) =>
     request("/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
 
-  // SETTINGS
+  // settings
   getSettings: () => request("/settings"),
   saveSettings: (payload) =>
     request("/settings", { method: "POST", body: JSON.stringify(payload) }),
 
-  // PEDIDOS (Materiais)
-  getOrders: () => request("/orders"),
+  // orders (materiais)
+  getOrders: (filters = {}) => {
+    const qs = new URLSearchParams(filters).toString();
+    return request(`/orders${qs ? `?${qs}` : ""}`);
+  },
   createOrder: (payload) =>
     request("/orders", { method: "POST", body: JSON.stringify(payload) }),
+  setOrderDone: (id, done) =>
+    request(`/orders/${id}/done`, {
+      method: "PATCH",
+      body: JSON.stringify({ done }),
+    }),
+  setOrderStatus: (id, payload) =>
+    request(`/orders/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
 
-  // CHAMADOS TI
-  getTiTickets: () => request("/ti/tickets"),
+  // ti
+  getTiTickets: (filters = {}) => {
+    const qs = new URLSearchParams(filters).toString();
+    return request(`/ti/tickets${qs ? `?${qs}` : ""}`);
+  },
   createTiTicket: (payload) =>
     request("/ti/tickets", { method: "POST", body: JSON.stringify(payload) }),
+  setTiTicketDone: (id, done) =>
+    request(`/ti/tickets/${id}/done`, {
+      method: "PATCH",
+      body: JSON.stringify({ done }),
+    }),
+  setTiTicketStatus: (id, payload) =>
+    request(`/ti/tickets/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
 };
-
-export default api;

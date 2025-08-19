@@ -3,6 +3,7 @@ import React, { useEffect } from "react";
 import { Routes, Route, Link, Navigate, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 
+// Páginas existentes
 import OrderForm from "./OrderForm";
 import Settings from "./Settings";
 import OrderList from "./OrderList";
@@ -10,19 +11,24 @@ import Login from "./Login";
 import TiHelpForm from "./TiHelpForm";
 import TiTicketList from "./TiTicketList";
 
+// NOVAS páginas para o solicitante ver resposta/status
+import MyOrders from "./MyOrders";
+import MyTiTickets from "./MyTiTickets";
+
+// Rota protegida
 const ProtectedRoute = ({ children, allowedRole, requireSettings = false }) => {
   const user = useSelector((state) => state.user);
   const settings = useSelector((state) => state.settings);
 
-  // Bloqueia acesso se não logado
+  // Não logado
   if (!user) return <Navigate to="/login" replace />;
 
-  // Bloqueia se o papel não bate
+  // Papel não permitido
   if (allowedRole && user.role !== allowedRole) {
     return <Navigate to="/login" replace />;
   }
 
-  // Exige configurações preenchidas quando necessário
+  // Exigir configurações preenchidas (para solicitantes)
   if (requireSettings && (!settings?.sector || !settings?.nameOrStore)) {
     return <Navigate to="/settings" replace />;
   }
@@ -36,22 +42,18 @@ const App = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // Reidrata user e settings do localStorage ao montar
+  // Reidrata user/settings do localStorage ao carregar o app
   useEffect(() => {
     try {
       const savedUser = JSON.parse(localStorage.getItem("user"));
-      if (savedUser) {
-        dispatch({ type: "SET_USER", payload: savedUser });
-      }
+      if (savedUser) dispatch({ type: "SET_USER", payload: savedUser });
     } catch (e) {
       console.warn("Não foi possível ler user do localStorage:", e);
     }
-
     try {
       const savedSettings = JSON.parse(localStorage.getItem("settings"));
-      if (savedSettings) {
+      if (savedSettings)
         dispatch({ type: "SET_SETTINGS", payload: savedSettings });
-      }
     } catch (e) {
       console.warn("Não foi possível ler settings do localStorage:", e);
     }
@@ -61,7 +63,7 @@ const App = () => {
     dispatch({ type: "CLEAR_USER" });
     try {
       localStorage.removeItem("user");
-      // Caso queira limpar também as configs locais:
+      // Se quiser limpar também as configs:
       // localStorage.removeItem("settings");
       // dispatch({ type: "CLEAR_SETTINGS" });
     } catch (e) {
@@ -76,7 +78,7 @@ const App = () => {
         <div className="max-w-7xl mx-auto flex flex-wrap items-center gap-3">
           {user ? (
             <>
-              {/* Materiais */}
+              {/* --------- Materiais (Solicitante) --------- */}
               {user.role === "solicitante" && (
                 <>
                   <Link
@@ -85,17 +87,27 @@ const App = () => {
                   >
                     Configurações
                   </Link>
+
                   {settings?.sector && settings?.nameOrStore && (
-                    <Link
-                      to="/"
-                      className="text-white hover:text-gray-300 font-medium"
-                    >
-                      Novo Pedido
-                    </Link>
+                    <>
+                      <Link
+                        to="/"
+                        className="text-white hover:text-gray-300 font-medium"
+                      >
+                        Novo Pedido
+                      </Link>
+                      <Link
+                        to="/meus-pedidos"
+                        className="text-white hover:text-gray-300 font-medium"
+                      >
+                        Meus Pedidos
+                      </Link>
+                    </>
                   )}
                 </>
               )}
 
+              {/* --------- Materiais (Responsável) --------- */}
               {user.role === "responsavel" && (
                 <Link
                   to="/orders"
@@ -105,7 +117,7 @@ const App = () => {
                 </Link>
               )}
 
-              {/* TI */}
+              {/* --------- TI (Solicitante TI) --------- */}
               {user.role === "solicitante_ti" && (
                 <>
                   <Link
@@ -114,17 +126,27 @@ const App = () => {
                   >
                     Configurações
                   </Link>
+
                   {settings?.sector && settings?.nameOrStore && (
-                    <Link
-                      to="/ti/help"
-                      className="text-white hover:text-gray-300 font-medium"
-                    >
-                      Chamado de TI
-                    </Link>
+                    <>
+                      <Link
+                        to="/ti/help"
+                        className="text-white hover:text-gray-300 font-medium"
+                      >
+                        Chamado de TI
+                      </Link>
+                      <Link
+                        to="/ti/meus-chamados"
+                        className="text-white hover:text-gray-300 font-medium"
+                      >
+                        Meus Chamados de TI
+                      </Link>
+                    </>
                   )}
                 </>
               )}
 
+              {/* --------- TI (Responsável TI) --------- */}
               {user.role === "responsavel_ti" && (
                 <Link
                   to="/ti/chamados"
@@ -153,9 +175,10 @@ const App = () => {
       </nav>
 
       <Routes>
+        {/* Login público */}
         <Route path="/login" element={<Login />} />
 
-        {/* Materiais */}
+        {/* --------- Materiais --------- */}
         <Route
           path="/settings"
           element={
@@ -177,6 +200,14 @@ const App = () => {
           }
         />
         <Route
+          path="/meus-pedidos"
+          element={
+            <ProtectedRoute allowedRole="solicitante" requireSettings>
+              <MyOrders />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/orders"
           element={
             <ProtectedRoute allowedRole="responsavel">
@@ -185,12 +216,20 @@ const App = () => {
           }
         />
 
-        {/* TI */}
+        {/* --------- TI --------- */}
         <Route
           path="/ti/help"
           element={
             <ProtectedRoute allowedRole="solicitante_ti" requireSettings>
               <TiHelpForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ti/meus-chamados"
+          element={
+            <ProtectedRoute allowedRole="solicitante_ti" requireSettings>
+              <MyTiTickets />
             </ProtectedRoute>
           }
         />
