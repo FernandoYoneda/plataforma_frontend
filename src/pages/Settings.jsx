@@ -1,76 +1,125 @@
-import React, { useEffect, useState } from "react";
+// src/pages/Settings.jsx
+import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { api } from "../services/api";
 import { useNavigate } from "react-router-dom";
 
+// Lista fixa de setores (como você pediu)
+const SECTORS = [
+  "ESC",
+  "SMA",
+  "COS",
+  "IGU",
+  "VOT",
+  "ARA",
+  "MAI",
+  "SAP",
+  "AST",
+  "CAR",
+  "ASC",
+  "COM",
+  "CID",
+  "CPK",
+  "TAU",
+  "TZN",
+  "EDE",
+  "VD",
+  "ERS",
+  "ERN",
+  "FINANCEIRO",
+  "RH",
+  "TI",
+  "COMERCIAL",
+  "LOGISTICA",
+];
+
 export default function Settings() {
-  const stored = useSelector((s) => s.settings);
-  const user = useSelector((s) => s.user);
-  const [sector, setSector] = useState(stored?.sector || "");
-  const [nameOrStore, setNameOrStore] = useState(stored?.nameOrStore || "");
-  const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
+  const current = useSelector((s) => s.settings);
+  const [sector, setSector] = useState(current?.sector || "");
+  const [nameOrStore, setNameOrStore] = useState(current?.nameOrStore || "");
+  const [saving, setSaving] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const s = await api.getSettings();
-        dispatch({ type: "SET_SETTINGS", payload: s });
-        setSector(s?.sector || "");
-        setNameOrStore(s?.nameOrStore || "");
-      } catch {}
-    })();
-  }, [dispatch]);
-
-  const onSubmit = async (e) => {
+  const save = async (e) => {
     e.preventDefault();
-    setMsg("");
-    setErr("");
-    try {
-      const saved = await api.saveSettings({ sector, nameOrStore });
-      dispatch({ type: "SET_SETTINGS", payload: saved });
-      localStorage.setItem("settings", JSON.stringify(saved));
-      setMsg("Configurações salvas!");
+    setSaving(true);
 
-      if (user?.role === "solicitante") navigate("/materiais/novo");
-      if (user?.role === "solicitante_ti") navigate("/ti/novo");
-    } catch (e1) {
-      setErr(e1.message || "Erro ao salvar");
+    const payload = {
+      sector: String(sector || "").trim(),
+      nameOrStore: String(nameOrStore || "").trim(),
+    };
+
+    try {
+      const res = await fetch(`/api/settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error("Falha ao salvar configurações");
+
+      const data = await res.json();
+      dispatch({ type: "SET_SETTINGS", payload: data });
+
+      try {
+        localStorage.setItem("settings", JSON.stringify(data));
+      } catch {
+        /* ignore */
+      }
+
+      // Redireciona conforme o papel salvo no localStorage
+      const role = JSON.parse(localStorage.getItem("user") || "{}")?.role;
+      if (role === "solicitante") {
+        navigate("/", { replace: true });
+      } else if (role === "solicitante_ti") {
+        navigate("/ti/help", { replace: true });
+      }
+    } catch (e2) {
+      alert(e2.message || "Erro ao salvar");
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
-    <div className="max-w-md mx-auto p-6">
+    <div className="max-w-md mx-auto p-6 bg-white rounded-xl shadow">
       <h1 className="text-xl font-semibold mb-4">Configurações</h1>
 
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form onSubmit={save} className="space-y-4">
         <div>
           <label className="block text-sm mb-1">Setor</label>
-          <input
-            className="w-full border rounded p-2"
+          <select
+            required
             value={sector}
             onChange={(e) => setSector(e.target.value)}
-            required
-          />
+            className="w-full border rounded p-2 bg-white"
+          >
+            <option value="">Selecione o setor…</option>
+            {SECTORS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>
           <label className="block text-sm mb-1">Nome / Loja</label>
           <input
+            required
             className="w-full border rounded p-2"
             value={nameOrStore}
             onChange={(e) => setNameOrStore(e.target.value)}
-            required
+            placeholder="Seu nome ou loja"
           />
         </div>
 
-        {err && <p className="text-red-600 text-sm">{err}</p>}
-        {msg && <p className="text-green-700 text-sm">{msg}</p>}
-
-        <button className="bg-blue-600 text-white rounded px-4 py-2">
-          Salvar
+        <button
+          type="submit"
+          disabled={saving}
+          className="bg-blue-600 text-white rounded px-4 py-2 disabled:opacity-60 hover:bg-blue-700"
+        >
+          {saving ? "Salvando..." : "Salvar"}
         </button>
       </form>
     </div>

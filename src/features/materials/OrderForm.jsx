@@ -1,85 +1,118 @@
-import React, { useState } from "react";
+import React from "react";
 import { useSelector } from "react-redux";
-import { api } from "../../services/api";
+import {
+  Card,
+  CardSection,
+  PageHeader,
+  Input,
+  TextArea,
+  PrimaryButton,
+  EmptyState,
+} from "../../components/ui";
 
 export default function OrderForm() {
   const settings = useSelector((s) => s.settings);
-  const user = useSelector((s) => s.user);
-  const [item, setItem] = useState("");
-  const [qty, setQty] = useState(1);
-  const [notes, setNotes] = useState("");
-  const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
+  const [item, setItem] = React.useState("");
+  const [qty, setQty] = React.useState(1);
+  const [obs, setObs] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+  const ready = settings?.sector && settings?.nameOrStore;
 
-  const onSubmit = async (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    setMsg("");
-    setErr("");
+    if (!ready) return;
+    setLoading(true);
     try {
-      await api.createOrder({
-        item,
-        qty,
-        notes,
-        sector: settings?.sector || null,
-        nameOrStore: settings?.nameOrStore || null,
-        requesterEmail: user?.email || null,
-        requesterName: settings?.nameOrStore || null,
-        requesterSector: settings?.sector || null,
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sector: settings.sector,
+          nameOrStore: settings.nameOrStore,
+          item: item.trim(),
+          quantity: Number(qty) || 1,
+          note: obs.trim(),
+        }),
       });
-      setMsg("Pedido enviado!");
+      if (!res.ok)
+        throw new Error(
+          (await res.json().catch(() => null))?.error || "Falha ao enviar"
+        );
       setItem("");
       setQty(1);
-      setNotes("");
-    } catch (e1) {
-      setErr(e1.message || "Erro ao enviar");
+      setObs("");
+      alert("Pedido enviado!");
+    } catch (e) {
+      alert(e.message || "Erro ao enviar");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-lg mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">Novo Pedido</h1>
-      <p className="text-sm mb-2 text-gray-600">
-        Usuário: <b>{settings?.nameOrStore}</b> — Setor:{" "}
-        <b>{settings?.sector}</b>
-      </p>
+    <div className="max-w-5xl mx-auto space-y-6">
+      <PageHeader
+        title="Novo Pedido de Materiais"
+        subtitle="Informe o item, quantidade e observações. Seu setor e nome são preenchidos automaticamente."
+      />
 
-      <form onSubmit={onSubmit} className="space-y-3">
-        <div>
-          <label className="block text-sm">Item</label>
-          <input
-            className="border rounded p-2 w-full"
-            value={item}
-            onChange={(e) => setItem(e.target.value)}
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm">Quantidade</label>
-          <input
-            className="border rounded p-2 w-full"
-            type="number"
-            min={1}
-            value={qty}
-            onChange={(e) => setQty(e.target.value)}
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm">Observações</label>
-          <textarea
-            className="border rounded p-2 w-full"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </div>
+      {!ready ? (
+        <Card>
+          <CardSection>
+            <EmptyState
+              title="Configure seu perfil"
+              subtitle="Vá em Configurações e informe Setor e Nome."
+            />
+          </CardSection>
+        </Card>
+      ) : (
+        <Card>
+          <CardSection title="Dados do solicitante">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Input label="Setor" value={settings.sector} disabled />
+              <Input
+                label="Nome / Loja"
+                value={settings.nameOrStore}
+                disabled
+              />
+            </div>
+          </CardSection>
 
-        {err && <p className="text-red-600 text-sm">{err}</p>}
-        {msg && <p className="text-green-700 text-sm">{msg}</p>}
+          <div className="border-t border-gray-200" />
 
-        <button className="bg-blue-600 text-white rounded px-4 py-2">
-          Enviar
-        </button>
-      </form>
+          <CardSection title="Detalhes do pedido">
+            <form onSubmit={submit} className="grid gap-4">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Input
+                  label="Item"
+                  value={item}
+                  onChange={(e) => setItem(e.target.value)}
+                  required
+                />
+                <Input
+                  label="Quantidade"
+                  type="number"
+                  min={1}
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                  required
+                />
+              </div>
+              <TextArea
+                label="Observações"
+                value={obs}
+                onChange={(e) => setObs(e.target.value)}
+                rows={3}
+              />
+              <div className="flex justify-end">
+                <PrimaryButton type="submit" disabled={loading}>
+                  {loading ? "Enviando…" : "Enviar pedido"}
+                </PrimaryButton>
+              </div>
+            </form>
+          </CardSection>
+        </Card>
+      )}
     </div>
   );
 }

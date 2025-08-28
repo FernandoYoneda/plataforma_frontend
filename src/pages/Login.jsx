@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { api } from "../services/api";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -17,26 +16,36 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const { role, email: emailFromServer } = await api.login({
-        email: email.trim(),
-        password: password.trim(),
+      const res = await fetch(`/api/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          password: password.trim(),
+        }),
       });
 
-      dispatch({ type: "SET_USER", payload: { role, email: emailFromServer } });
-      localStorage.setItem(
-        "user",
-        JSON.stringify({ role, email: emailFromServer })
-      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Credenciais inválidas");
+      }
 
-      switch (role) {
+      const data = await res.json(); // { role }
+      const user = { role: data.role };
+      dispatch({ type: "SET_USER", payload: user });
+      try {
+        localStorage.setItem("user", JSON.stringify(user));
+      } catch {}
+
+      switch (data.role) {
         case "responsavel":
-          navigate("/materiais/lista", { replace: true });
+          navigate("/dashboard", { replace: true });
           break;
         case "solicitante":
           navigate("/settings", { replace: true });
           break;
         case "responsavel_ti":
-          navigate("/ti/lista", { replace: true });
+          navigate("/dashboard", { replace: true });
           break;
         case "solicitante_ti":
           navigate("/settings", { replace: true });
@@ -67,7 +76,6 @@ export default function Login() {
             autoComplete="username"
           />
         </div>
-
         <div>
           <label className="block text-sm mb-1">Senha</label>
           <input
@@ -80,9 +88,7 @@ export default function Login() {
             autoComplete="current-password"
           />
         </div>
-
         {error && <p className="text-red-600 text-sm">{error}</p>}
-
         <button
           type="submit"
           disabled={loading}

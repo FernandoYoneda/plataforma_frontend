@@ -1,28 +1,11 @@
 import { createStore } from "redux";
+import reducer from "./reducer";
 
-const initialState = {
-  orders: [],
-  settings: { sector: "", nameOrStore: "" },
-  user: null,
-};
+const enhancer =
+  typeof window !== "undefined" && window.__REDUX_DEVTOOLS_EXTENSION__
+    ? window.__REDUX_DEVTOOLS_EXTENSION__()
+    : undefined;
 
-function reducer(state = initialState, action) {
-  switch (action.type) {
-    case "ADD_ORDER":
-      return { ...state, orders: [...state.orders, action.payload] };
-    case "SET_ORDERS":
-      return { ...state, orders: action.payload };
-    case "UPDATE_SETTINGS":
-    case "SET_SETTINGS":
-      return { ...state, settings: action.payload };
-    case "SET_USER":
-      return { ...state, user: action.payload };
-    case "CLEAR_USER":
-      return { ...state, user: null };
-    default:
-      return state;
-  }
-}
+const store = createStore(reducer, enhancer);
 
-const store = createStore(reducer);
 export default store;

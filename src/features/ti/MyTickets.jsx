@@ -1,8 +1,10 @@
-// src/features/ti/TiTicketList.jsx
+// src/features/ti/MyTickets.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { getTickets, updateTicket } from "../../services/api";
+import { useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import { getTickets } from "../../services/api";
 
-// ---------------- UI helpers ----------------
+// --- helpers UI -------------------------------------------------------------
 function StatusBadge({ status }) {
   const map = {
     aberto: "bg-gray-100 text-gray-800",
@@ -33,7 +35,7 @@ function LoadingRow({ colSpan = 1, label = "Carregando…" }) {
   );
 }
 
-function EmptyRow({ colSpan = 1, label = "Nenhum chamado encontrado." }) {
+function EmptyRow({ colSpan = 1, label = "Nenhum registro encontrado." }) {
   return (
     <tr>
       <td colSpan={colSpan} className="p-8 text-center text-gray-500">
@@ -43,23 +45,30 @@ function EmptyRow({ colSpan = 1, label = "Nenhum chamado encontrado." }) {
   );
 }
 
-// ---------------- Página ----------------
-export default function TiTicketList() {
+// --- Página -----------------------------------------------------------------
+export default function MyTickets() {
+  const settings = useSelector((s) => s.settings);
+  const navigate = useNavigate();
+
   const [fullList, setFullList] = useState([]);
   const [visibleCount, setVisibleCount] = useState(10);
 
-  // filtros
-  const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
-  const [sector, setSector] = useState("");
-  const [requester, setRequester] = useState("");
+  const [q, setQ] = useState("");
 
-  // ui
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Bloqueia acesso se não tiver setor/nome configurados
+  useEffect(() => {
+    if (!settings?.sector || !settings?.nameOrStore) {
+      navigate("/settings", { replace: true });
+    }
+  }, [settings, navigate]);
+
   const debounceRef = useRef(null);
 
-  const fetchData = async (params = {}) => {
+  const fetchData = async (params) => {
     setLoading(true);
     setError("");
     try {
@@ -74,40 +83,36 @@ export default function TiTicketList() {
     }
   };
 
-  // 1ª carga
+  // 1ª carga quando settings existir
   useEffect(() => {
-    fetchData({});
+    if (!settings?.sector || !settings?.nameOrStore) return;
+    fetchData({
+      sector: settings.sector,
+      nameOrStore: settings.nameOrStore,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [settings?.sector, settings?.nameOrStore]);
 
-  // recarrega ao mudar filtros (q com debounce)
+  // reload ao mudar filtros (com debounce para 'q')
   useEffect(() => {
+    if (!settings?.sector || !settings?.nameOrStore) return;
+
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      const params = {};
+      const params = {
+        sector: settings.sector,
+        nameOrStore: settings.nameOrStore,
+      };
       if (status) params.status = status;
-      if (sector) params.sector = sector;
-      if (requester) params.nameOrStore = requester;
       if (q) params.q = q;
       fetchData(params);
     }, 350);
+
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, status, sector, requester]);
-
-  const sectorOptions = useMemo(() => {
-    const set = new Set();
-    fullList.forEach((t) => t?.sector && set.add(t.sector));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [fullList]);
-
-  const requesterOptions = useMemo(() => {
-    const set = new Set();
-    fullList.forEach((t) => t?.nameOrStore && set.add(t.nameOrStore));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [fullList]);
+  }, [status, q]);
 
   const sliced = useMemo(
     () => fullList.slice(0, visibleCount),
@@ -118,23 +123,6 @@ export default function TiTicketList() {
   const clearFilters = () => {
     setQ("");
     setStatus("");
-    setSector("");
-    setRequester("");
-  };
-
-  const onUpdate = async (id, patch) => {
-    try {
-      await updateTicket(id, patch);
-      // mantém filtros, recarrega a lista atual
-      const params = {};
-      if (status) params.status = status;
-      if (sector) params.sector = sector;
-      if (requester) params.nameOrStore = requester;
-      if (q) params.q = q;
-      await fetchData(params);
-    } catch (e) {
-      alert(e?.message || "Erro ao atualizar chamado");
-    }
   };
 
   return (
@@ -142,18 +130,19 @@ export default function TiTicketList() {
       {/* Cabeçalho */}
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Lista de Chamados de TI</h1>
+          <h1 className="text-xl font-semibold">Meus Chamados (TI)</h1>
           <p className="text-sm text-gray-600">
-            Visualize, filtre e atualize os chamados.
+            <strong>Usuário:</strong> {settings?.nameOrStore || "-"} &middot;{" "}
+            <strong>Setor:</strong> {settings?.sector || "-"}
           </p>
         </div>
       </header>
 
       {/* Filtros */}
       <section className="bg-white border rounded-2xl shadow-sm p-4">
-        <div className="grid gap-3 lg:grid-cols-[1fr,180px,180px,220px,110px] md:grid-cols-2">
-          {/* busca */}
-          <div className="relative md:col-span-2 lg:col-span-1">
+        <div className="grid gap-3 md:grid-cols-[1fr,220px,110px]">
+          {/* Busca */}
+          <div className="relative">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                 <path
@@ -166,41 +155,13 @@ export default function TiTicketList() {
             </span>
             <input
               className="w-full pl-10 pr-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              placeholder="Buscar por título/descrição/feedback…"
+              placeholder="Buscar por título ou descrição…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
 
-          {/* setor */}
-          <select
-            className="px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-            value={sector}
-            onChange={(e) => setSector(e.target.value)}
-          >
-            <option value="">Todos os setores</option>
-            {sectorOptions.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-
-          {/* solicitante */}
-          <select
-            className="px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-            value={requester}
-            onChange={(e) => setRequester(e.target.value)}
-          >
-            <option value="">Todos os solicitantes</option>
-            {requesterOptions.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-
-          {/* status */}
+          {/* Status */}
           <select
             className="px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
             value={status}
@@ -228,19 +189,16 @@ export default function TiTicketList() {
           <thead className="bg-gray-50 text-gray-600">
             <tr>
               <th className="text-left p-3">Data</th>
-              <th className="text-left p-3">Solicitante</th>
-              <th className="text-left p-3">Setor</th>
               <th className="text-left p-3">Título</th>
               <th className="text-left p-3">Descrição</th>
               <th className="text-left p-3">Status</th>
-              <th className="text-left p-3">Feedback</th>
-              <th className="text-left p-3">Ações</th>
+              <th className="text-left p-3">Feedback do responsável</th>
             </tr>
           </thead>
           <tbody>
             {error && (
               <tr>
-                <td colSpan={8} className="p-4">
+                <td colSpan={5} className="p-4">
                   <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                     {error}
                   </div>
@@ -248,27 +206,23 @@ export default function TiTicketList() {
               </tr>
             )}
 
-            {!error && loading && <LoadingRow colSpan={8} />}
+            {!error && loading && <LoadingRow colSpan={5} />}
 
             {!error && !loading && sliced.length === 0 && (
-              <EmptyRow colSpan={8} />
+              <EmptyRow
+                colSpan={5}
+                label="Você ainda não tem chamados com os filtros atuais."
+              />
             )}
 
             {!error &&
               !loading &&
               sliced.map((t) => (
-                <tr
-                  key={t.id}
-                  className="odd:bg-white even:bg-gray-50/60 align-top"
-                >
+                <tr key={t.id} className="odd:bg-white even:bg-gray-50/60">
                   <td className="p-3 text-gray-700">
                     {t.createdAt ? new Date(t.createdAt).toLocaleString() : "-"}
                   </td>
-                  <td className="p-3 font-medium text-gray-900">
-                    {t.nameOrStore}
-                  </td>
-                  <td className="p-3 text-gray-700">{t.sector}</td>
-                  <td className="p-3 text-gray-700">{t.title}</td>
+                  <td className="p-3 font-medium text-gray-900">{t.title}</td>
                   <td className="p-3 text-gray-700 whitespace-pre-wrap">
                     {t.description?.trim() || "-"}
                   </td>
@@ -278,36 +232,13 @@ export default function TiTicketList() {
                   <td className="p-3 text-gray-700 whitespace-pre-wrap">
                     {t.response?.trim() || "-"}
                   </td>
-                  <td className="p-3 space-y-2 w-56">
-                    <select
-                      className="border rounded px-2 py-1 text-sm w-full"
-                      value={t.status}
-                      onChange={(e) =>
-                        onUpdate(t.id, { status: e.target.value })
-                      }
-                    >
-                      <option value="aberto">Aberto</option>
-                      <option value="em_andamento">Em andamento</option>
-                      <option value="finalizado">Finalizado</option>
-                    </select>
-
-                    <textarea
-                      className="border rounded p-2 text-sm w-full"
-                      rows={3}
-                      defaultValue={t.response || ""}
-                      placeholder="Escreva um feedback ao solicitante…"
-                      onBlur={(e) =>
-                        onUpdate(t.id, { response: e.target.value })
-                      }
-                    />
-                  </td>
                 </tr>
               ))}
           </tbody>
         </table>
       </section>
 
-      {/* Paginação */}
+      {/* Paginação: Carregar mais */}
       {!loading && !error && canLoadMore && (
         <div className="text-center">
           <button

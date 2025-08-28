@@ -1,67 +1,71 @@
-const API_BASE = process.env.REACT_APP_API || "/api";
+// src/services/api.js
+const base = "";
 
-async function request(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: options.method || "GET",
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    body: options.body,
+// TI
+export async function createTicket(payload) {
+  const res = await fetch(`${base}/api/ti/tickets`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload), // {sector, nameOrStore, title, description}
   });
-
-  const ct = res.headers.get("content-type") || "";
-  let data = null;
-  if (ct.includes("application/json")) data = await res.json();
-  else {
-    const t = await res.text().catch(() => "");
-    data = t || null;
-  }
-
-  if (!res.ok) {
-    const message =
-      (data && data.error) ||
-      (typeof data === "string" ? data : null) ||
-      `HTTP ${res.status}`;
-    const err = new Error(message);
-    err.status = res.status;
-    err.data = data;
-    throw err;
-  }
-  return data;
+  if (!res.ok) throw new Error("Erro ao criar chamado");
+  return res.json();
 }
 
-export const api = {
-  login: ({ email, password }) =>
-    request("/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    }),
+export async function getTickets(params = {}) {
+  const qs = new URLSearchParams(params).toString();
+  const res = await fetch(`${base}/api/ti/tickets?${qs}`);
+  if (!res.ok) throw new Error("Erro ao listar chamados");
+  return res.json();
+}
 
-  getSettings: () => request("/settings"),
-  saveSettings: (payload) =>
-    request("/settings", { method: "POST", body: JSON.stringify(payload) }),
+export async function updateTicket(id, patch) {
+  const res = await fetch(`${base}/api/ti/tickets/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error("Erro ao atualizar chamado");
+  return res.json();
+}
 
-  getOrders: (filters = {}) => {
-    const qs = new URLSearchParams(filters).toString();
-    return request(`/orders${qs ? `?${qs}` : ""}`);
-  },
-  createOrder: (payload) =>
-    request("/orders", { method: "POST", body: JSON.stringify(payload) }),
-  setOrderStatus: (id, payload) =>
-    request(`/orders/${id}/status`, {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    }),
+// MATERIAIS (exemplo – mantenha seus outros exports)
+export async function createOrder(payload) {
+  const res = await fetch(`${base}/api/orders`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Erro ao criar pedido");
+  return res.json();
+}
 
-  getTiTickets: (filters = {}) => {
-    const qs = new URLSearchParams(filters).toString();
-    return request(`/ti/tickets${qs ? `?${qs}` : ""}`);
-  },
-  createTiTicket: (payload) =>
-    request("/ti/tickets", { method: "POST", body: JSON.stringify(payload) }),
-  setTiTicketStatus: (id, payload) =>
-    request(`/ti/tickets/${id}/status`, {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    }),
-};
+export async function getOrders(params = {}) {
+  const qs = new URLSearchParams(params).toString();
+  const res = await fetch(`${base}/api/orders?${qs}`);
+  if (!res.ok) throw new Error("Erro ao listar pedidos");
+  return res.json();
+}
 
-export default api;
+export async function updateOrder(id, patch) {
+  const res = await fetch(`${base}/api/orders/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error("Erro ao atualizar pedido");
+  return res.json();
+}
+
+export async function login(credentials) {
+  const res = await fetch(`/api/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(credentials),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error(j.error || "Falha no login");
+  }
+  return res.json();
+}
