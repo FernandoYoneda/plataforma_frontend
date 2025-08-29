@@ -1,108 +1,87 @@
 // src/services/api.js
-const base = ""; // em dev, o setupProxy encaminha para http://localhost:10000
+const BASE =
+  process.env.NODE_ENV === "production"
+    ? "" // no Render, o front chama o back pelo domínio; se usar subdomínios, troque aqui
+    : "/api"; // em dev, via setupProxy para http://localhost:10000
 
-async function safeJson(res) {
-  // Lê como texto e tenta parsear, lidando com body vazio
+async function parseJsonSafely(res) {
+  // Alguns 204/304 não têm corpo; alguns erros podem vir como HTML.
   const text = await res.text();
   if (!text) return null;
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error("Resposta não é JSON válido");
+    // ajuda debugar quando o back não retornou JSON
+    throw new Error(`Resposta não é JSON válido (status ${res.status})`);
   }
 }
 
-async function handle(res) {
-  if (!res.ok) {
-    // tenta extrair erro do JSON; se vazio, monta mensagem pelo status
-    let msg = `HTTP ${res.status}`;
-    try {
-      const data = await safeJson(res);
-      if (data?.error) msg = data.error;
-    } catch (_) {
-      // ignore
+async function request(path, opts = {}) {
+  const res = await fetch(
+    path.startsWith("/api") || path.startsWith("http")
+      ? path
+      : `${BASE}${path}`,
+    {
+      headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+      ...opts,
     }
+  );
+
+  // tenta decodificar corpo (pode ser null)
+  const data = await parseJsonSafely(res).catch((e) => {
+    // quando falhou parse, propaga erro com status
+    throw new Error(e.message || `Falha ao ler resposta (${res.status})`);
+  });
+
+  if (!res.ok) {
+    const msg = data?.error || data?.message || `Erro HTTP ${res.status}`;
     throw new Error(msg);
   }
-  // 204/empty -> retorna null
-  try {
-    return await safeJson(res);
-  } catch {
-    return null;
-  }
+
+  return data;
 }
 
-// ------- AUTH -------
+/* ====== endpoints ====== */
+
 export async function login({ email, password }) {
-  const res = await fetch(`${base}/api/login`, {
+  return request(`/api/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-  return handle(res); // { role }
 }
 
-// ------- SETTINGS -------
-export async function saveSettings(payload) {
-  const res = await fetch(`${base}/api/settings`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  return handle(res); // { sector, nameOrStore }
-}
-
-export async function getSettings() {
-  const res = await fetch(`${base}/api/settings`);
-  return handle(res); // { sector, nameOrStore }
-}
-
-// ------- ORDERS -------
+/** Orders (Materiais) */
 export async function getOrders(params = {}) {
   const qs = new URLSearchParams(params).toString();
-  const res = await fetch(`${base}/api/orders${qs ? "?" + qs : ""}`);
-  return handle(res); // { total, page, pageSize, items: [...] }
+  return request(`/api/orders${qs ? "?" + qs : ""}`);
 }
-
-export async function createOrder(body) {
-  const res = await fetch(`${base}/api/orders`, {
+export async function createOrder(payload) {
+  return request(`/api/orders`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
-  return handle(res); // created order
 }
-
 export async function updateOrder(id, patch) {
-  const res = await fetch(`${base}/api/orders/${id}`, {
+  return request(`/api/orders/${id}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
   });
-  return handle(res); // updated order
 }
 
-// ------- TI TICKETS -------
+/** Tickets (TI) */
 export async function getTickets(params = {}) {
   const qs = new URLSearchParams(params).toString();
-  const res = await fetch(`${base}/api/ti/tickets${qs ? "?" + qs : ""}`);
-  return handle(res); // { total, page, pageSize, items: [...] }
+  return request(`/api/ti/tickets${qs ? "?" + qs : ""}`);
 }
-
-export async function createTicket(body) {
-  const res = await fetch(`${base}/api/ti/tickets`, {
+export async function createTicket(payload) {
+  return request(`/api/ti/tickets`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
-  return handle(res); // created ticket
 }
-
 export async function updateTicket(id, patch) {
-  const res = await fetch(`${base}/api/ti/tickets/${id}`, {
+  return request(`/api/ti/tickets/${id}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
   });
-  return handle(res); // updated ticket
 }
