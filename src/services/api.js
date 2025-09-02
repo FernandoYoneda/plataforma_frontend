@@ -1,13 +1,17 @@
 // src/services/api.js
 
-// Detecta ambiente: usa backend do Render em produção e proxy local em dev.
+// 1) Base URL do backend
+// - Em produção, prefira configurar REACT_APP_API_BASE no Render do frontend.
+// - Em dev local, deixe vazio ("") para usar o setupProxy e redirecionar para http://localhost:10000.
+// - Fallback: se o hostname terminar com onrender.com, usa a URL do seu backend no Render.
 const BASE_URL =
-  typeof window !== "undefined" &&
+  process.env.REACT_APP_API_BASE ||
+  (typeof window !== "undefined" &&
   window.location.hostname.endsWith("onrender.com")
     ? "https://plataforma-backend-188l.onrender.com"
-    : "";
+    : "");
 
-/** Monta querystring a partir de um objeto (ignora vazios) */
+// 2) Helper: monta querystring ignorando valores vazios
 function qs(params = {}) {
   const u = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => {
@@ -19,41 +23,50 @@ function qs(params = {}) {
   return s ? `?${s}` : "";
 }
 
-/** Wrapper seguro para fetch:
- * - Sempre lê o corpo como texto
- * - Se !ok -> tenta extrair {error}, senão usa o texto cru
- * - Se ok e tiver JSON válido -> retorna objeto
- * - Se ok e corpo vazio -> retorna null
- */
+// 3) Wrapper robusto pro fetch
+// - Sempre lê como texto
+// - Se !ok, tenta extrair {error}, senão cai no texto cru
+// - Se ok e vier HTML (provável chamada ao frontend), dá erro explicativo
+// - Se ok e corpo vazio -> retorna null
 async function request(path, { method = "GET", headers = {}, body } = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
-    headers: {
-      "Content-Type": "application/json",
-      ...headers,
-    },
+    headers: { "Content-Type": "application/json", ...headers },
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  const text = await res.text(); // sempre como texto
+  const text = await res.text();
+
   if (!res.ok) {
     let msg = text || "Erro na requisição";
     try {
       const j = JSON.parse(text);
       if (j?.error) msg = j.error;
-    } catch {}
+    } catch {
+      // Se backend caiu ou rota bateu no frontend (HTML), avisa melhor:
+      if (/<!doctype html>/i.test(text) || /<html/i.test(text)) {
+        msg =
+          "A resposta parece ser HTML (provável frontend). Verifique REACT_APP_API_BASE/BASE_URL e o CORS do backend.";
+      }
+    }
     throw new Error(msg);
   }
 
-  if (!text) return null; // corpo vazio (ex.: 204)
+  if (!text) return null;
+
   try {
     return JSON.parse(text);
   } catch {
+    if (/<!doctype html>/i.test(text) || /<html/i.test(text)) {
+      throw new Error(
+        "Resposta HTML recebida — provavelmente chamou o frontend. Ajuste REACT_APP_API_BASE/BASE_URL."
+      );
+    }
     throw new Error("Resposta inválida do servidor");
   }
 }
 
-/** -------- Auth -------- */
+/** ---------- Auth ---------- */
 export async function login({ email, password }) {
   return request("/api/login", {
     method: "POST",
@@ -61,7 +74,7 @@ export async function login({ email, password }) {
   });
 }
 
-/** -------- Materiais (Orders) -------- */
+/** ---------- Materiais (Orders) ---------- */
 export async function getOrders(params = {}) {
   return request(`/api/orders${qs(params)}`);
 }
@@ -80,7 +93,7 @@ export async function updateOrder(id, patch) {
   });
 }
 
-/** -------- TI (Tickets) -------- */
+/** ---------- TI (Tickets) ---------- */
 export async function getTickets(params = {}) {
   return request(`/api/ti/tickets${qs(params)}`);
 }
@@ -99,7 +112,7 @@ export async function updateTicket(id, patch) {
   });
 }
 
-/** (Opcional) Healthcheck – útil para diagnósticos */
+/** (Opcional) Healthcheck */
 export async function health() {
   return request("/health");
 }
