@@ -1,8 +1,7 @@
 // src/features/ti/TiTicketList.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { getTickets, updateTicket } from "../../services/api";
 
-// ---------------- UI helpers ----------------
 function StatusBadge({ status }) {
   const map = {
     aberto: "bg-gray-100 text-gray-800",
@@ -20,189 +19,81 @@ function StatusBadge({ status }) {
   );
 }
 
-function LoadingRow({ colSpan = 1, label = "Carregando…" }) {
-  return (
-    <tr>
-      <td colSpan={colSpan} className="p-6">
-        <div className="flex items-center gap-3 text-gray-600">
-          <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-transparent" />
-          {label}
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-function EmptyRow({ colSpan = 1, label = "Nenhum chamado encontrado." }) {
-  return (
-    <tr>
-      <td colSpan={colSpan} className="p-8 text-center text-gray-500">
-        {label}
-      </td>
-    </tr>
-  );
-}
-
-// ---------------- Página ----------------
 export default function TiTicketList() {
-  const [fullList, setFullList] = useState([]);
-  const [visibleCount, setVisibleCount] = useState(10);
-
-  // filtros
+  const [list, setList] = useState([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
-  const [sector, setSector] = useState("");
-  const [requester, setRequester] = useState("");
-
-  // ui
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const debounceRef = useRef(null);
 
-  const fetchData = async (params = {}) => {
+  // paginação
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const load = async () => {
     setLoading(true);
     setError("");
     try {
+      const params = {};
+      if (status) params.status = status;
+      if (q) params.q = q;
       const data = await getTickets(params);
-      setFullList(Array.isArray(data) ? data : []);
-      setVisibleCount(10);
+      setList(data || []);
+      setPage(1);
     } catch (e) {
-      setError(e?.message || "Erro ao carregar chamados");
-      setFullList([]);
+      setError(e.message || "Erro ao carregar chamados");
     } finally {
       setLoading(false);
     }
   };
 
-  // 1ª carga
   useEffect(() => {
-    fetchData({});
+    const t = setTimeout(load, 300);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // recarrega ao mudar filtros (q com debounce)
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      const params = {};
-      if (status) params.status = status;
-      if (sector) params.sector = sector;
-      if (requester) params.nameOrStore = requester;
-      if (q) params.q = q;
-      fetchData(params);
-    }, 350);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, status, sector, requester]);
-
-  const sectorOptions = useMemo(() => {
-    const set = new Set();
-    fullList.forEach((t) => t?.sector && set.add(t.sector));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [fullList]);
-
-  const requesterOptions = useMemo(() => {
-    const set = new Set();
-    fullList.forEach((t) => t?.nameOrStore && set.add(t.nameOrStore));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [fullList]);
-
-  const sliced = useMemo(
-    () => fullList.slice(0, visibleCount),
-    [fullList, visibleCount]
-  );
-  const canLoadMore = visibleCount < fullList.length;
-
-  const clearFilters = () => {
-    setQ("");
-    setStatus("");
-    setSector("");
-    setRequester("");
-  };
+  }, [status, q]);
 
   const onUpdate = async (id, patch) => {
     try {
       await updateTicket(id, patch);
-      // mantém filtros, recarrega a lista atual
-      const params = {};
-      if (status) params.status = status;
-      if (sector) params.sector = sector;
-      if (requester) params.nameOrStore = requester;
-      if (q) params.q = q;
-      await fetchData(params);
+      await load();
     } catch (e) {
-      alert(e?.message || "Erro ao atualizar chamado");
+      alert(e.message || "Erro ao atualizar");
     }
   };
 
+  // paginação
+  const total = list.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const endIndex = Math.min(total, startIndex + pageSize);
+  const visible = list.slice(startIndex, endIndex);
+
+  const goFirst = () => setPage(1);
+  const goPrev = () => setPage((p) => Math.max(1, p - 1));
+  const goNext = () => setPage((p) => Math.min(totalPages, p + 1));
+  const goLast = () => setPage(totalPages);
+
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-5">
-      {/* Cabeçalho */}
-      <header className="flex flex-wrap items-end justify-between gap-3">
+    <div className="max-w-7xl mx-auto p-4 space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Lista de Chamados de TI</h1>
           <p className="text-sm text-gray-600">
             Visualize, filtre e atualize os chamados.
           </p>
         </div>
-      </header>
 
-      {/* Filtros */}
-      <section className="bg-white border rounded-2xl shadow-sm p-4">
-        <div className="grid gap-3 lg:grid-cols-[1fr,180px,180px,220px,110px] md:grid-cols-2">
-          {/* busca */}
-          <div className="relative md:col-span-2 lg:col-span-1">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </span>
-            <input
-              className="w-full pl-10 pr-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              placeholder="Buscar por título/descrição/feedback…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </div>
-
-          {/* setor */}
+        <div className="bg-white border rounded-xl p-3 grid md:grid-cols-3 gap-3">
+          <input
+            className="border rounded px-2 py-1 text-sm md:col-span-2"
+            placeholder="Buscar por título/descrição/resposta"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
           <select
-            className="px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-            value={sector}
-            onChange={(e) => setSector(e.target.value)}
-          >
-            <option value="">Todos os setores</option>
-            {sectorOptions.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-
-          {/* solicitante */}
-          <select
-            className="px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-            value={requester}
-            onChange={(e) => setRequester(e.target.value)}
-          >
-            <option value="">Todos os solicitantes</option>
-            {requesterOptions.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-
-          {/* status */}
-          <select
-            className="px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            className="border rounded px-2 py-1 text-sm"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
           >
@@ -211,112 +102,157 @@ export default function TiTicketList() {
             <option value="em_andamento">Em andamento</option>
             <option value="finalizado">Finalizado</option>
           </select>
-
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="px-3 py-2 rounded-xl border bg-gray-50 hover:bg-gray-100 text-sm"
-          >
-            Limpar
-          </button>
         </div>
-      </section>
+      </div>
 
-      {/* Tabela */}
-      <section className="overflow-hidden border border-gray-200 rounded-xl bg-white">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600">
-            <tr>
-              <th className="text-left p-3">Data</th>
-              <th className="text-left p-3">Solicitante</th>
-              <th className="text-left p-3">Setor</th>
-              <th className="text-left p-3">Título</th>
-              <th className="text-left p-3">Descrição</th>
-              <th className="text-left p-3">Status</th>
-              <th className="text-left p-3">Feedback</th>
-              <th className="text-left p-3">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {error && (
-              <tr>
-                <td colSpan={8} className="p-4">
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                    {error}
-                  </div>
-                </td>
-              </tr>
-            )}
+      {error && (
+        <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
 
-            {!error && loading && <LoadingRow colSpan={8} />}
+      {loading ? (
+        <div className="text-gray-600">Carregando…</div>
+      ) : (
+        <>
+          {/* header da paginação */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm text-gray-600">
+              Exibindo{" "}
+              <strong>
+                {total === 0 ? 0 : startIndex + 1}–{endIndex}
+              </strong>{" "}
+              de <strong>{total}</strong> chamados
+            </div>
 
-            {!error && !loading && sliced.length === 0 && (
-              <EmptyRow colSpan={8} />
-            )}
+            <div className="flex items-center gap-2 text-sm">
+              <span>Tamanho da página:</span>
+              <select
+                className="border rounded px-2 py-1 text-sm"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+              >
+                {[5, 10, 20, 50].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
 
-            {!error &&
-              !loading &&
-              sliced.map((t) => (
-                <tr
-                  key={t.id}
-                  className="odd:bg-white even:bg-gray-50/60 align-top"
+              <div className="flex items-center gap-1">
+                <button
+                  className="px-2 py-1 border rounded disabled:opacity-50"
+                  onClick={goFirst}
+                  disabled={safePage === 1}
                 >
-                  <td className="p-3 text-gray-700">
-                    {t.createdAt ? new Date(t.createdAt).toLocaleString() : "-"}
-                  </td>
-                  <td className="p-3 font-medium text-gray-900">
-                    {t.nameOrStore}
-                  </td>
-                  <td className="p-3 text-gray-700">{t.sector}</td>
-                  <td className="p-3 text-gray-700">{t.title}</td>
-                  <td className="p-3 text-gray-700 whitespace-pre-wrap">
-                    {t.description?.trim() || "-"}
-                  </td>
-                  <td className="p-3">
-                    <StatusBadge status={t.status} />
-                  </td>
-                  <td className="p-3 text-gray-700 whitespace-pre-wrap">
-                    {t.response?.trim() || "-"}
-                  </td>
-                  <td className="p-3 space-y-2 w-56">
-                    <select
-                      className="border rounded px-2 py-1 text-sm w-full"
-                      value={t.status}
-                      onChange={(e) =>
-                        onUpdate(t.id, { status: e.target.value })
-                      }
-                    >
-                      <option value="aberto">Aberto</option>
-                      <option value="em_andamento">Em andamento</option>
-                      <option value="finalizado">Finalizado</option>
-                    </select>
+                  «
+                </button>
+                <button
+                  className="px-2 py-1 border rounded disabled:opacity-50"
+                  onClick={goPrev}
+                  disabled={safePage === 1}
+                >
+                  ‹
+                </button>
+                <span className="px-2">
+                  Página <strong>{safePage}</strong> de{" "}
+                  <strong>{totalPages}</strong>
+                </span>
+                <button
+                  className="px-2 py-1 border rounded disabled:opacity-50"
+                  onClick={goNext}
+                  disabled={safePage === totalPages}
+                >
+                  ›
+                </button>
+                <button
+                  className="px-2 py-1 border rounded disabled:opacity-50"
+                  onClick={goLast}
+                  disabled={safePage === totalPages}
+                >
+                  »
+                </button>
+              </div>
+            </div>
+          </div>
 
-                    <textarea
-                      className="border rounded p-2 text-sm w-full"
-                      rows={3}
-                      defaultValue={t.response || ""}
-                      placeholder="Escreva um feedback ao solicitante…"
-                      onBlur={(e) =>
-                        onUpdate(t.id, { response: e.target.value })
-                      }
-                    />
-                  </td>
+          <div className="overflow-hidden border border-gray-200 rounded-xl bg-white">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="text-left p-3">Data</th>
+                  <th className="text-left p-3">Solicitante</th>
+                  <th className="text-left p-3">Setor</th>
+                  <th className="text-left p-3">Título</th>
+                  <th className="text-left p-3">Descrição</th>
+                  <th className="text-left p-3">Status</th>
+                  <th className="text-left p-3">Feedback</th>
+                  <th className="text-left p-3">Ações</th>
                 </tr>
-              ))}
-          </tbody>
-        </table>
-      </section>
+              </thead>
+              <tbody>
+                {visible.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="p-4 text-center text-gray-500">
+                      Nenhum chamado encontrado.
+                    </td>
+                  </tr>
+                ) : (
+                  visible.map((t) => (
+                    <tr
+                      key={t.id}
+                      className="odd:bg-white even:bg-gray-50/60 align-top"
+                    >
+                      <td className="p-3 text-gray-700">
+                        {new Date(t.createdAt).toLocaleString()}
+                      </td>
+                      <td className="p-3 font-medium text-gray-900">
+                        {t.nameOrStore}
+                      </td>
+                      <td className="p-3 text-gray-700">{t.sector}</td>
+                      <td className="p-3 text-gray-700">{t.title}</td>
+                      <td className="p-3 text-gray-700 whitespace-pre-wrap">
+                        {t.description?.trim() || "-"}
+                      </td>
+                      <td className="p-3">
+                        <StatusBadge status={t.status} />
+                      </td>
+                      <td className="p-3 text-gray-700 whitespace-pre-wrap">
+                        {t.response?.trim() || "-"}
+                      </td>
+                      <td className="p-3 space-y-2">
+                        <select
+                          className="border rounded px-2 py-1 text-sm w-full"
+                          value={t.status}
+                          onChange={(e) =>
+                            onUpdate(t.id, { status: e.target.value })
+                          }
+                        >
+                          <option value="aberto">Aberto</option>
+                          <option value="em_andamento">Em andamento</option>
+                          <option value="finalizado">Finalizado</option>
+                        </select>
 
-      {/* Paginação */}
-      {!loading && !error && canLoadMore && (
-        <div className="text-center">
-          <button
-            onClick={() => setVisibleCount((v) => v + 10)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Carregar mais
-          </button>
-        </div>
+                        <textarea
+                          className="border rounded p-2 text-sm w-full"
+                          rows={3}
+                          defaultValue={t.response || ""}
+                          placeholder="Escreva um feedback ao solicitante…"
+                          onBlur={(e) =>
+                            onUpdate(t.id, { response: e.target.value })
+                          }
+                        />
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

@@ -1,87 +1,105 @@
 // src/services/api.js
-const BASE =
-  process.env.NODE_ENV === "production"
-    ? "" // no Render, o front chama o back pelo domínio; se usar subdomínios, troque aqui
-    : "/api"; // em dev, via setupProxy para http://localhost:10000
 
-async function parseJsonSafely(res) {
-  // Alguns 204/304 não têm corpo; alguns erros podem vir como HTML.
-  const text = await res.text();
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    // ajuda debugar quando o back não retornou JSON
-    throw new Error(`Resposta não é JSON válido (status ${res.status})`);
-  }
+// Detecta ambiente: usa backend do Render em produção e proxy local em dev.
+const BASE_URL =
+  typeof window !== "undefined" &&
+  window.location.hostname.endsWith("onrender.com")
+    ? "https://plataforma-backend-188l.onrender.com"
+    : "";
+
+/** Monta querystring a partir de um objeto (ignora vazios) */
+function qs(params = {}) {
+  const u = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && String(v).trim() !== "") {
+      u.append(k, String(v));
+    }
+  });
+  const s = u.toString();
+  return s ? `?${s}` : "";
 }
 
-async function request(path, opts = {}) {
-  const res = await fetch(
-    path.startsWith("/api") || path.startsWith("http")
-      ? path
-      : `${BASE}${path}`,
-    {
-      headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
-      ...opts,
-    }
-  );
-
-  // tenta decodificar corpo (pode ser null)
-  const data = await parseJsonSafely(res).catch((e) => {
-    // quando falhou parse, propaga erro com status
-    throw new Error(e.message || `Falha ao ler resposta (${res.status})`);
+/** Wrapper seguro para fetch:
+ * - Sempre lê o corpo como texto
+ * - Se !ok -> tenta extrair {error}, senão usa o texto cru
+ * - Se ok e tiver JSON válido -> retorna objeto
+ * - Se ok e corpo vazio -> retorna null
+ */
+async function request(path, { method = "GET", headers = {}, body } = {}) {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      ...headers,
+    },
+    body: body ? JSON.stringify(body) : undefined,
   });
 
+  const text = await res.text(); // sempre como texto
   if (!res.ok) {
-    const msg = data?.error || data?.message || `Erro HTTP ${res.status}`;
+    let msg = text || "Erro na requisição";
+    try {
+      const j = JSON.parse(text);
+      if (j?.error) msg = j.error;
+    } catch {}
     throw new Error(msg);
   }
 
-  return data;
+  if (!text) return null; // corpo vazio (ex.: 204)
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error("Resposta inválida do servidor");
+  }
 }
 
-/* ====== endpoints ====== */
-
+/** -------- Auth -------- */
 export async function login({ email, password }) {
-  return request(`/api/login`, {
+  return request("/api/login", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: { email, password },
   });
 }
 
-/** Orders (Materiais) */
+/** -------- Materiais (Orders) -------- */
 export async function getOrders(params = {}) {
-  const qs = new URLSearchParams(params).toString();
-  return request(`/api/orders${qs ? "?" + qs : ""}`);
+  return request(`/api/orders${qs(params)}`);
 }
+
 export async function createOrder(payload) {
-  return request(`/api/orders`, {
+  return request("/api/orders", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: payload,
   });
 }
+
 export async function updateOrder(id, patch) {
   return request(`/api/orders/${id}`, {
     method: "PUT",
-    body: JSON.stringify(patch),
+    body: patch,
   });
 }
 
-/** Tickets (TI) */
+/** -------- TI (Tickets) -------- */
 export async function getTickets(params = {}) {
-  const qs = new URLSearchParams(params).toString();
-  return request(`/api/ti/tickets${qs ? "?" + qs : ""}`);
+  return request(`/api/ti/tickets${qs(params)}`);
 }
+
 export async function createTicket(payload) {
-  return request(`/api/ti/tickets`, {
+  return request("/api/ti/tickets", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: payload,
   });
 }
+
 export async function updateTicket(id, patch) {
   return request(`/api/ti/tickets/${id}`, {
     method: "PUT",
-    body: JSON.stringify(patch),
+    body: patch,
   });
+}
+
+/** (Opcional) Healthcheck – útil para diagnósticos */
+export async function health() {
+  return request("/health");
 }

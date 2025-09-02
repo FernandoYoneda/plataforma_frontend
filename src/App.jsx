@@ -16,20 +16,35 @@ import DashboardResponsavel from "./pages/DashboardResponsavel";
 import MyOrders from "./features/materials/MyOrders";
 import MyTickets from "./features/ti/MyTickets";
 
-const ProtectedRoute = ({ children, allowedRole, requireSettings = false }) => {
+const ProtectedRoute = ({
+  children,
+  allowedRole, // compat: string único
+  allowedRoles, // novo: array de papéis permitidos
+  requireSettings = false,
+}) => {
   const user = useSelector((state) => state.user);
   const settings = useSelector((state) => state.settings);
 
   if (!user) return <Navigate to="/login" replace />;
-  if (allowedRole && user.role !== allowedRole)
+
+  // compatibilidade com código existente
+  if (allowedRole && user.role !== allowedRole) {
     return <Navigate to="/login" replace />;
+  }
+
+  // novo: múltiplos papéis
+  if (Array.isArray(allowedRoles) && allowedRoles.length > 0) {
+    if (!allowedRoles.includes(user.role)) {
+      return <Navigate to="/login" replace />;
+    }
+  }
 
   if (requireSettings && (!settings?.sector || !settings?.nameOrStore)) {
     return <Navigate to="/settings" replace />;
   }
+
   return children;
 };
-
 export default function App() {
   const user = useSelector((state) => state.user);
   const settings = useSelector((state) => state.settings);

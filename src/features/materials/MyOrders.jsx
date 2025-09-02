@@ -31,7 +31,10 @@ export default function MyOrders() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // bloqueia acesso se não tiver setor/nome configurados
+  // paginação
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   useEffect(() => {
     if (!settings?.sector || !settings?.nameOrStore) {
       navigate("/settings", { replace: true });
@@ -52,6 +55,7 @@ export default function MyOrders() {
 
       const data = await getOrders(params);
       setList(data || []);
+      setPage(1);
     } catch (e) {
       setError(e.message || "Erro ao carregar pedidos");
     } finally {
@@ -59,11 +63,24 @@ export default function MyOrders() {
     }
   };
 
-  // carrega ao abrir e quando filtros mudam
   useEffect(() => {
-    load();
+    const t = setTimeout(load, 300);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, q, settings?.sector, settings?.nameOrStore]);
+
+  // paginação
+  const total = list.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const endIndex = Math.min(total, startIndex + pageSize);
+  const visible = list.slice(startIndex, endIndex);
+
+  const goFirst = () => setPage(1);
+  const goPrev = () => setPage((p) => Math.max(1, p - 1));
+  const goNext = () => setPage((p) => Math.min(totalPages, p + 1));
+  const goLast = () => setPage(totalPages);
 
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-4">
@@ -76,7 +93,6 @@ export default function MyOrders() {
           </p>
         </div>
 
-        {/* Filtros do solicitante */}
         <div className="bg-white border rounded-xl p-3 grid md:grid-cols-3 gap-3">
           <input
             className="border rounded px-2 py-1 text-sm md:col-span-2"
@@ -106,46 +122,114 @@ export default function MyOrders() {
       {loading ? (
         <div className="text-gray-600">Carregando…</div>
       ) : (
-        <div className="overflow-hidden border border-gray-200 rounded-xl bg-white">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600">
-              <tr>
-                <th className="text-left p-3">Data</th>
-                <th className="text-left p-3">Item</th>
-                <th className="text-left p-3">Qtd</th>
-                <th className="text-left p-3">Obs</th>
-                <th className="text-left p-3">Status</th>
-                <th className="text-left p-3">Feedback do responsável</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.length === 0 ? (
+        <>
+          {/* header da paginação */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm text-gray-600">
+              Exibindo{" "}
+              <strong>
+                {total === 0 ? 0 : startIndex + 1}–{endIndex}
+              </strong>{" "}
+              de <strong>{total}</strong> pedidos
+            </div>
+
+            <div className="flex items-center gap-2 text-sm">
+              <span>Tamanho da página:</span>
+              <select
+                className="border rounded px-2 py-1 text-sm"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+              >
+                {[5, 10, 20, 50].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+
+              <div className="flex items-center gap-1">
+                <button
+                  className="px-2 py-1 border rounded disabled:opacity-50"
+                  onClick={goFirst}
+                  disabled={safePage === 1}
+                >
+                  «
+                </button>
+                <button
+                  className="px-2 py-1 border rounded disabled:opacity-50"
+                  onClick={goPrev}
+                  disabled={safePage === 1}
+                >
+                  ‹
+                </button>
+                <span className="px-2">
+                  Página <strong>{safePage}</strong> de{" "}
+                  <strong>{totalPages}</strong>
+                </span>
+                <button
+                  className="px-2 py-1 border rounded disabled:opacity-50"
+                  onClick={goNext}
+                  disabled={safePage === totalPages}
+                >
+                  ›
+                </button>
+                <button
+                  className="px-2 py-1 border rounded disabled:opacity-50"
+                  onClick={goLast}
+                  disabled={safePage === totalPages}
+                >
+                  »
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-hidden border border-gray-200 rounded-xl bg-white">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 text-gray-600">
                 <tr>
-                  <td colSpan={6} className="p-4 text-center text-gray-500">
-                    Você ainda não tem pedidos com os filtros atuais.
-                  </td>
+                  <th className="text-left p-3">Data</th>
+                  <th className="text-left p-3">Item</th>
+                  <th className="text-left p-3">Qtd</th>
+                  <th className="text-left p-3">Obs</th>
+                  <th className="text-left p-3">Status</th>
+                  <th className="text-left p-3">Feedback do responsável</th>
                 </tr>
-              ) : (
-                list.map((o) => (
-                  <tr key={o.id} className="odd:bg-white even:bg-gray-50/60">
-                    <td className="p-3 text-gray-700">
-                      {new Date(o.createdAt).toLocaleString()}
-                    </td>
-                    <td className="p-3 font-medium text-gray-900">{o.item}</td>
-                    <td className="p-3 text-gray-700">{o.quantity}</td>
-                    <td className="p-3 text-gray-700">{o.obs || "-"}</td>
-                    <td className="p-3">
-                      <StatusBadge status={o.status} />
-                    </td>
-                    <td className="p-3 text-gray-700">
-                      {o.response?.trim() || "-"}
+              </thead>
+              <tbody>
+                {visible.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-4 text-center text-gray-500">
+                      Você ainda não tem pedidos com os filtros atuais.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  visible.map((o) => (
+                    <tr key={o.id} className="odd:bg-white even:bg-gray-50/60">
+                      <td className="p-3 text-gray-700">
+                        {new Date(o.createdAt).toLocaleString()}
+                      </td>
+                      <td className="p-3 font-medium text-gray-900">
+                        {o.item}
+                      </td>
+                      <td className="p-3 text-gray-700">{o.quantity}</td>
+                      <td className="p-3 text-gray-700">{o.obs || "-"}</td>
+                      <td className="p-3">
+                        <StatusBadge status={o.status} />
+                      </td>
+                      <td className="p-3 text-gray-700">
+                        {o.response?.trim() || "-"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
