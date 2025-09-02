@@ -1,3 +1,4 @@
+// src/pages/Login.jsx
 import React, { useState } from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -25,12 +26,22 @@ export default function Login() {
         }),
       });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Credenciais inválidas");
+      // SEMPRE ler como texto primeiro
+      const raw = await res.text();
+      let data = null;
+      try {
+        data = raw ? JSON.parse(raw) : null;
+      } catch {
+        // se não for JSON, data fica null
       }
 
-      const data = await res.json(); // { role }
+      if (!res.ok) {
+        throw new Error((data && data.error) || raw || "Credenciais inválidas");
+      }
+      if (!data || !data.role) {
+        throw new Error("Resposta inválida do servidor");
+      }
+
       const user = { role: data.role };
       dispatch({ type: "SET_USER", payload: user });
       try {
@@ -39,14 +50,10 @@ export default function Login() {
 
       switch (data.role) {
         case "responsavel":
-          navigate("/dashboard", { replace: true });
-          break;
-        case "solicitante":
-          navigate("/settings", { replace: true });
-          break;
         case "responsavel_ti":
           navigate("/dashboard", { replace: true });
           break;
+        case "solicitante":
         case "solicitante_ti":
           navigate("/settings", { replace: true });
           break;
