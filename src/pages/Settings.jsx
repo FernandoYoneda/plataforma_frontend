@@ -3,33 +3,10 @@ import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 
-// Lista fixa de setores (como você pediu)
+/** setores fixos (você pode mover para um arquivo constants) */
 const SECTORS = [
-  "ESC",
-  "SMA",
-  "COS",
-  "IGU",
-  "VOT",
-  "ARA",
-  "MAI",
-  "SAP",
-  "AST",
-  "CAR",
-  "ASC",
-  "COM",
-  "CID",
-  "CPK",
-  "TAU",
-  "TZN",
-  "EDE",
-  "VD",
-  "ERS",
-  "ERN",
-  "FINANCEIRO",
-  "RH",
-  "TI",
-  "COMERCIAL",
-  "LOGISTICA",
+  "ESC","SMA","COS","IGU","VOT","ARA","MAI","SAP","AST","CAR","ASC","COM",
+  "CID","CPK","TAU","TZN","EDE","VD","ERS","ERN","FINANCEIRO","RH","TI","COMERCIAL","LOGISTICA",
 ];
 
 export default function Settings() {
@@ -40,65 +17,58 @@ export default function Settings() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const save = async (e) => {
+  async function save(e) {
     e.preventDefault();
     setSaving(true);
 
-    const payload = {
-      sector: String(sector || "").trim(),
-      nameOrStore: String(nameOrStore || "").trim(),
-    };
-
     try {
+      // chama o backend só para validar e padronizar
       const res = await fetch(`/api/settings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ sector, nameOrStore }),
       });
 
-      if (!res.ok) throw new Error("Falha ao salvar configurações");
+      const text = await res.text();
+      if (!res.ok) {
+        let msg = "Falha ao salvar";
+        try { msg = JSON.parse(text).error || msg; } catch {}
+        throw new Error(msg);
+      }
 
-      const data = await res.json();
+      const data = text ? JSON.parse(text) : { sector, nameOrStore };
+
       dispatch({ type: "SET_SETTINGS", payload: data });
+      try { localStorage.setItem("settings", JSON.stringify(data)); } catch {}
 
-      try {
-        localStorage.setItem("settings", JSON.stringify(data));
-      } catch {
-        /* ignore */
-      }
-
-      // Redireciona conforme o papel salvo no localStorage
+      // redireciona conforme o papel
       const role = JSON.parse(localStorage.getItem("user") || "{}")?.role;
-      if (role === "solicitante") {
-        navigate("/", { replace: true });
-      } else if (role === "solicitante_ti") {
-        navigate("/ti/help", { replace: true });
-      }
-    } catch (e2) {
-      alert(e2.message || "Erro ao salvar");
+      if (role === "solicitante") navigate("/", { replace: true });
+      else if (role === "solicitante_ti") navigate("/ti/help", { replace: true });
+      else navigate("/", { replace: true });
+    } catch (err) {
+      alert(err.message || "Erro");
     } finally {
       setSaving(false);
     }
-  };
+  }
 
   return (
-    <div className="max-w-md mx-auto p-6 bg-white rounded-xl shadow">
+    <div className="max-w-md mx-auto p-6">
       <h1 className="text-xl font-semibold mb-4">Configurações</h1>
 
       <form onSubmit={save} className="space-y-4">
         <div>
           <label className="block text-sm mb-1">Setor</label>
           <select
-            required
+            className="w-full border rounded p-2"
             value={sector}
             onChange={(e) => setSector(e.target.value)}
-            className="w-full border rounded p-2 bg-white"
+            required
           >
-            <option value="">Selecione o setor…</option>
+            <option value="">Selecione…</option>
             {SECTORS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
+              <option key={s} value={s}>{s}</option>
             ))}
           </select>
         </div>
@@ -106,18 +76,18 @@ export default function Settings() {
         <div>
           <label className="block text-sm mb-1">Nome / Loja</label>
           <input
-            required
             className="w-full border rounded p-2"
             value={nameOrStore}
             onChange={(e) => setNameOrStore(e.target.value)}
             placeholder="Seu nome ou loja"
+            required
           />
         </div>
 
         <button
           type="submit"
           disabled={saving}
-          className="bg-blue-600 text-white rounded px-4 py-2 disabled:opacity-60 hover:bg-blue-700"
+          className="bg-blue-600 text-white rounded px-4 py-2 disabled:opacity-60"
         >
           {saving ? "Salvando..." : "Salvar"}
         </button>
