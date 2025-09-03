@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 /** setores fixos (você pode mover para um arquivo constants) */
 const SECTORS = [
   "ESC","SMA","COS","IGU","VOT","ARA","MAI","SAP","AST","CAR","ASC","COM",
-  "CID","CPK","TAU","TZN","EDE","VD","ERS","ERN","FINANCEIRO","RH","TI","COMERCIAL","LOGISTICA",
+  "CID","CPK","TAU","TZN","EDE","VD","ERS","ERN","FINANCEIRO","RH","TI","COMERCIAL","LOGISTICA","MARKETING",
 ];
 
 export default function Settings() {
